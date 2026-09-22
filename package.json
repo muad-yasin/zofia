@@ -12,7 +12,9 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "node --test test/e2e/*.test.mjs",
-    "test:config": "node --test test/config/*.test.mjs"
+    "test:config": "node --test test/config/*.test.mjs",
+    "test:lint": "node --test test/lint/*.test.mjs",
+    "lint:ledger": "node scripts/check-scope-ledger.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2"
