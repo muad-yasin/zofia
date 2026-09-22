@@ -282,3 +282,28 @@ in `ROADMAP.md`/`TODO.md`/`TODO-Archive.md`. The concrete config value (whatever
 `config/providers.json`/the launch-settings key actually needs to say for "sonnet,
 latest") is item 4's own build work, not written here — this entry records the decision,
 not the implementation.
+
+## 2026-09-23 — items 7 and 9 (zofia-26, builder B)
+
+- **Item 7: the schema validator is hand-written, not ajv.** It has zero dependencies
+  and implements only the keywords `providers.schema.json` uses. It throws on any
+  other keyword, so the schema can't rely on a rule that is silently not enforced.
+- **Item 7: `build.rs` now needs Node on PATH.** It generates the gitignored
+  `src-tauri/src/generated/providers.rs`, so a fresh clone's `cargo test` works. Without
+  Node it panics with a message saying so (zofia-8b's request).
+- **Item 7: all effort values ship as `UNKNOWN`.** `docs/field-availability.md` row 2
+  proves effort is *exposed*, but not which levels exist per model, or which key a
+  CLI-spawned seat's effort goes in. Nothing was invented. Owner decision 2 fills them
+  in, each tagged `docs/field-availability.md#…`.
+- **Item 7: the models are the CLI's own aliases** (`sonnet`, `opus`, `haiku`), and the
+  default is `sonnet` per owner decision 4. The runtime guard lets unknown ids through,
+  because the CLI accepts full model ids. It enforces only the xAI/Grok rule, and it
+  also rejects non-ASCII ids so a lookalike "grоk" (Cyrillic о) can't pass.
+- **Item 9: ledger-only ids are a warning, not a failure.** HANDOFF says "or vice
+  versa", but the real PLAN.md has three ledger entries never cited outside the ledger
+  (GEMINI38FLASH-1, MUSESPARK12-1, QWEN38MAX-2). A hard failure would contradict the
+  same item's "exit zero on the real PLAN.md". `--strict` makes them errors. PLAN.md
+  was not edited (it's the council's plan). Whether to cite those three in the body, or
+  keep the warning, is for C&C and the owner.
+- **Process note:** C&C's instruction to fix the item 1-3 audit regressions *before*
+  item 9 arrived after item 9 was already committed. The regressions are next.

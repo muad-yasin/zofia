@@ -7,10 +7,11 @@ to it. Update status here as items close; the *why* behind a decision belongs in
 `DECISIONS.md`, not here. Superseded content moves to `ROADMAP-Archive.md`, never
 deleted, never rewritten in place.
 
-## Where we are — 2026-09-22
+## Where we are — 2026-09-23
 
-Items 1-3 of `HANDOFF.md`'s 9-item build order are done and pushed. Building is
-currently paused at the owner's own request, for repo doc hygiene (this file included).
+Items 1-3 and 9 are done and pushed. Two builders now share the checkout (owner's call,
+2026-09-23): zofia-8b on item 4, zofia-26 on item 7 (part 2 pending) and then the
+item 1-3 audit fixes from `Review/Verify_Items1-3_2026-09-23.md`.
 
 ## Year 1 — the concrete build (`PLAN.md` §8/§11, `HANDOFF.md`'s 9 items)
 
@@ -24,12 +25,13 @@ currently paused at the owner's own request, for repo doc hygiene (this file inc
 5. Not started — **First AppImage build** (§6), independent, buildable any time after
    item 2.
 6. Not started — **Zero-egress audit** (§2.3), needs the full assembled shell.
-7. Not started — **Provider/effort config** (§5), independent; concrete effort values
-   wait on owner decision 7 below, now actually ripe since item 1's probe is done.
+7. ⏳ **Provider/effort config** (§5) — part 1 (schema, generator, stale lint) done,
+   `50ced01`; part 2 (runtime guard in the crate) lands after item 4's commit. Effort
+   values are `UNKNOWN` placeholders until owner decision 7 below.
 8. Blocked — **Real-subscription center-seat testing**, blocked on owner decision 1
    below (his own ToS read).
-9. Not started — **Scope-ledger lint** (added 2026-09-22 by C&C); blocks nothing, built
-   last.
+9. ✅ **Scope-ledger lint** (added 2026-09-22 by C&C) — `69e561c`. Warns on three
+   ledger-only ids in PLAN.md; see `DECISIONS.md`.
 
 ## Years 2-7 — an `IF`-gated review, never a fixed commitment (`PLAN.md` §11)
 

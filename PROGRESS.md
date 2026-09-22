@@ -148,3 +148,31 @@ GUI) plus Playwright against `vite preview` (not Tauri), so the real
 conversion has never fired at runtime; it relies on Tauri v2's documented default
 camelCase/snake_case convention, not a test that proves it end-to-end. See
 `DECISIONS.md`.
+
+## 2026-09-23 — item 7, provider/effort config (zofia-26, builder B)
+
+**Done, part 1 (`50ced01`):** `config/providers.json` is the only authority; the
+schema rejects any grok/xAI model id, provider id, alias name, alias target or default
+model. The generator writes the gitignored TS and Rust files from it, and `npm run
+build`/`build.rs` run it first. Every effort value is `UNKNOWN`, a placeholder for owner
+decision 2. Acceptance legs proven by `npm run test:config` (17/17): grok entry → exit
+1; TS and Rust id lists identical; no `ALLOWED_PROVIDERS` in `src/`; stale-files lint
+fails on an unregenerated edit; every effort value is `UNKNOWN` or tagged to
+`docs/field-availability.md`.
+
+**Written, not yet committed, part 2:** `src-tauri/src/provider_guard.rs`, the runtime
+rejection (typed id or alias target), independent of the schema. It passes 5/5 compiled
+standalone (`rustc --test`), but it isn't in the crate yet: its `mod` line goes into
+`lib.rs` in one commit after zofia-8b's item 4 lands, as agreed. Until then the
+"runtime rejection fires with the schema bypassed" leg is proven standalone only, and no
+spawn path calls it yet (zofia-8b wires it into the center seat's `--model`).
+
+**Not verified:** the `build.rs` "Node not on PATH" error message was read, not
+triggered.
+
+## 2026-09-23 — item 9, scope-ledger lint (zofia-26)
+
+**Done (`69e561c`):** `npm run lint:ledger` exits 1 on
+`test/lint/fixtures/plan-broken-ledger.md` and 0 on the real `PLAN.md`; `npm run
+test:lint` 6/6. The real PLAN.md has three ledger-only ids, reported as warnings (see
+`DECISIONS.md`).

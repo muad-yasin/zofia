@@ -14,10 +14,10 @@ describing yesterday is the failure mode this exists to fix. Long narrative belo
 
 ## PRIORITY NOW
 
-**2026-09-22, paused at the owner's own request** ("I want to pause") for repo doc
-hygiene — this file, `ROADMAP.md`, `docs/README.md`, and the `Review/` folder. Once
-that's done, `HANDOFF.md`'s own order says item 4 (center seat against a mock, §3) is
-next; nothing here overrides that.
+**2026-09-23, two builders.** zofia-8b: item 4 (center seat against a mock). zofia-26:
+item 7 part 2 (the runtime guard's `lib.rs` line, after item 4's commit), then the item
+1-3 audit regressions C&C assigned (#2-#9 in `Review/Verify_Items1-3_2026-09-23.md`;
+#2, the shim's deep merge that keeps a stale `five_hour`, first). Item 9 is done.
 
 ---
 
@@ -28,6 +28,8 @@ next; nothing here overrides that.
    mock.
 2. **Decide real effort-tier values** — genuinely actionable now, for the first time:
    item 1's probe is done and `docs/field-availability.md` has real measured values.
+   Item 7's config (`config/providers.json`) ships every effort value, and the CLI
+   effort launch key, as `UNKNOWN` placeholders until this is decided.
 3. **Measure his actual screen** — replaces §4's placeholder breakpoint/pane-floor pixel
    values with real ones. Not urgent; the shell already works and is tested against the
    placeholders.

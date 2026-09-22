@@ -34,3 +34,12 @@ id(s) it serves (HANDOFF.md's own "files to keep current while building" rule).
   PROGRESS.md/DECISIONS.md for the deliberate Rust/Node logic duplication, the
   process-wide env var test race `cargo test` itself caught, and what's still unverified
   (a real Tauri window has never launched against this).
+- 2026-09-23 — Provider/effort config, part 1 (PLAN.md §5, HANDOFF.md item 7; scope
+  ledger FABLE51-3, MUSESPARK12-3 folded in). `config/providers.json` +
+  `providers.schema.json`, `scripts/gen-providers.mjs` (validator, generator, `--check`
+  stale lint), `src-tauri/build.rs` runs it, `test/config/providers.test.mjs`. 17 tests.
+  Commit `50ced01`. Part 2 (the runtime guard `provider_guard.rs` + its `lib.rs` line)
+  lands after zofia-8b's item 4 commit.
+- 2026-09-23 — Scope-ledger lint (HANDOFF.md item 9, C&C addition; serves the Scope
+  ledger itself, no single proposal id). `scripts/check-scope-ledger.mjs`,
+  `test/lint/`. 6 tests. Commit `69e561c`.
