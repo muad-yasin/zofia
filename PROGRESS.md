@@ -51,8 +51,19 @@ One dated line per item, what's actually done vs. assumed (HANDOFF.md's own conv
   source-level fact that `zofia-reader.mjs` has no code path that opens a transcript at
   all.
 
-**Item 1 is fully done.** Next: item 3 (wire the reader into the shell) is unblocked —
-was gated on this real field matrix, which now exists.
+**Item 1 is fully done — closed twice, the second time for real.** thcmcp-aa's
+independent read of the first close-out caught two real gaps before item 3 could start:
+`docs/field-availability.md` rows 6/8/9 still read "not yet" after the capture had
+already happened, and a genuine bug in `deriveSnapshot.mjs` — `rate_limits` and
+`rate_limits.five_hour` are two independently-absent things (3 of 5 real sessions had
+the former without the latter, all idle at capture time), and the code said "rate_limits
+absent" for both cases, which is wrong for the 3-of-5 one. Both fixed: the doc rows now
+cite the real captured values, and `deriveSnapshot.mjs` gives each absence case its own
+accurate reason string, pinned by a new test. 36 reader tests passing (was 35 before
+this fix added one). Full detail in `DECISIONS.md`.
+
+Next: item 3 (wire the reader into the shell) is unblocked — was gated on this real
+field matrix, which now exists and is now actually accurate.
 
 ## 2026-09-22 — item 2, week 1 Track B: the static shell
 

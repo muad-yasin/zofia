@@ -80,14 +80,26 @@ function deriveEffort(sl) {
   );
 }
 
+// Two genuinely different absence cases, confirmed distinct by the 2026-09-22 live
+// capture (docs/field-availability.md rows 3-4): `rate_limits` itself can be missing
+// entirely, or present with only `seven_day` while `five_hour` is missing — 3 of 5 real
+// sessions captured that day had the latter (all idle at capture time; the two with
+// recent activity had `five_hour`). What exactly brings `five_hour` back isn't isolated
+// yet — a fresh API response in this session is the leading guess, not a confirmed
+// trigger — so the reason string says only what's actually known.
+function describeRateLimitAbsence(sl, whichField) {
+  if (sl?.rate_limits && typeof sl.rate_limits === "object") {
+    return `statusline JSON rate_limits is present but its five_hour block is absent right now (seven_day alone was present in a 2026-09-22 live capture, on idle sessions specifically) — exact trigger for five_hour appearing isn't isolated yet; never inferred locally, see ${whichField}`;
+  }
+  return "statusline JSON rate_limits absent entirely — appears only for Pro/Max subscribers (or a spend-limited gateway) and only after the session's first API response (Claude Code docs); never inferred locally";
+}
+
 function deriveRateLimitPct(sl) {
   const pct = sl?.rate_limits?.five_hour?.used_percentage;
   if (typeof pct === "number") {
     return field(pct, AVAILABILITY.EXPOSED, "statusline JSON rate_limits.five_hour.used_percentage", sl.observed_at);
   }
-  return unknownField(
-    "statusline JSON rate_limits absent — appears only for Pro/Max subscribers (or a spend-limited gateway) and only after the session's first API response (Claude Code docs); never inferred locally"
-  );
+  return unknownField(describeRateLimitAbsence(sl, "rate_limits.five_hour.used_percentage"));
 }
 
 function deriveRateLimitReset(sl) {
@@ -95,9 +107,7 @@ function deriveRateLimitReset(sl) {
   if (typeof resetsAt === "number") {
     return field(resetsAt, AVAILABILITY.EXPOSED, "statusline JSON rate_limits.five_hour.resets_at (unix epoch seconds)", sl.observed_at);
   }
-  return unknownField(
-    "statusline JSON rate_limits absent (see usagePercent) — per PLAN.md §8 trigger 1, never inferred locally from usage timestamps"
-  );
+  return unknownField(describeRateLimitAbsence(sl, "rate_limits.five_hour.resets_at — per PLAN.md §8 trigger 1"));
 }
 
 function deriveContextPercent(sl) {

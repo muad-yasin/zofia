@@ -44,12 +44,22 @@ test("full statusline payload -> model/effort/usage/reset/context/cost all expos
   assert.deepEqual(snap.tokenSpend.tokens.value, { input_tokens: 100, output_tokens: 20 });
 });
 
-test("rate_limits absent (pre-first-API-response / non-metered) -> usage% and reset timer unknown, never guessed", () => {
+test("rate_limits absent entirely (pre-first-API-response / non-metered) -> usage% and reset timer unknown, never guessed", () => {
   const raw = { latest_statusline: baseSl({ rate_limits: undefined }), latest_hook_event: null, pid: null };
   const snap = deriveSnapshot(raw, { now: 1000 });
   assert.equal(snap.usagePercent.availability, "unknown");
   assert.equal(snap.resetTimer.availability, "unknown");
   assert.match(snap.resetTimer.source, /never inferred locally/);
+  assert.match(snap.resetTimer.source, /absent entirely/);
+});
+
+test("rate_limits present but five_hour missing (real idle-session shape, 2026-09-22 live capture) -> unknown, reason doesn't claim rate_limits is absent", () => {
+  const raw = { latest_statusline: baseSl({ rate_limits: { seven_day: { used_percentage: 28, resets_at: 9000 } } }), latest_hook_event: null, pid: null };
+  const snap = deriveSnapshot(raw, { now: 1000 });
+  assert.equal(snap.usagePercent.availability, "unknown");
+  assert.equal(snap.resetTimer.availability, "unknown");
+  assert.doesNotMatch(snap.usagePercent.source, /rate_limits absent entirely/);
+  assert.match(snap.usagePercent.source, /five_hour block is absent/);
 });
 
 test("effort absent (model doesn't support reasoning effort) -> unknown, not defaulted", () => {

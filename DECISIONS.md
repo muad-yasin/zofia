@@ -177,3 +177,28 @@ a static fixture (nothing else touches that file), but is not a reliable signal 
 actively-written real session — the source-level guarantee (no transcript-reading code path) is
 what actually proves the claim there, not atime-watching. Worth remembering if a future check
 tries to verify "nothing read this file" against a real session again.
+
+**thcmcp-aa's independent read of the same close-out caught two real gaps, both
+confirmed against the repo before fixing.** (1) `docs/field-availability.md` rows 6, 8,
+9 still said "not yet — doc-only until a live capture" after the capture had already
+happened; HANDOFF item 1's instruction to fill the nine rows with real measured values
+is separate from the acceptance test passing, and the close commit only touched
+DECISIONS.md/PROGRESS.md. Fixed: rows 3, 4, 6, 8, 9 now cite the real captured values
+(`cost.total_cost_usd: 18.13…`, `context_window` token counts, a live `PreToolUse`/`Bash`
+hook event), and the file's intro/"still open" sections no longer say the capture hasn't
+happened.
+
+(2) **Real bug in `deriveSnapshot.mjs`, not just a doc gap**: `rate_limits` and
+`rate_limits.five_hour` are two independently-absent things. Measured across the 5 real
+sessions the 2026-09-22 capture touched: 3 had `rate_limits.seven_day` present with
+`five_hour` missing (all three idle at capture time), 2 had both (the two sessions with
+recent activity). `deriveRateLimitPct`/`deriveRateLimitReset` only ever said "rate_limits
+absent" regardless of which case it was — factually wrong for the 3-of-5 case, where
+`rate_limits` plainly exists. Fixed with `describeRateLimitAbsence()`, which checks
+`rate_limits` presence separately from `rate_limits.five_hour` presence and gives each
+case its own accurate reason string; a new test
+(`deriveSnapshot.test.mjs`: "rate_limits present but five_hour missing") pins the
+distinction. **What isn't known yet**: what actually brings `five_hour` back — a fresh
+API response in that session is the leading guess from the pattern observed (idle
+sessions lack it, active ones have it), not a confirmed trigger. Recorded as open in
+`docs/field-availability.md` rather than asserted.
