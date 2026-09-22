@@ -262,3 +262,23 @@ own +1 test), not 45 — 4 (cli) + 13 (deriveSnapshot, now 14) + 5 (install) + 8
 (settingsPatch) + 5 (shim). Pre-existing inaccuracy from whoever wrote that line
 originally, not something this item's changes caused; corrected in `PROGRESS.md`/`BUILT.md`
 rather than left to compound.
+
+## 2026-09-23 — owner decision 4 resolved (`PLAN.md` §10, item 4's C&C model)
+
+**The owner's own words, relayed by thcmcp-aa (the C&C seat) from the C&C chat, not
+typed directly into this session:** *"C&C model is Sonnet, latest build."* Read as: the
+center seat launches with Claude Code's own `sonnet` alias (matches the real
+`~/.claude/settings.json` shape already seen during item 1's install — `"model":
+"sonnet"`, not a pinned dated snapshot id), always resolving to whatever Sonnet build is
+current, not a fixed model id frozen at build time. This is a relay of a decision, not a
+work instruction — `HANDOFF.md`'s own order still governs what gets built and when;
+recording the fact now doesn't start item 4 early. thcmcp-aa independently re-verified
+the last two commits (`75c34e7`, `d0e901e`) against the repo before relaying — 36/36
+reader and 16/16 Rust tests, and confirmed the hygiene commit deleted nothing and
+changed no code — consistent with what this session already knows to be true.
+Recorded here per PLAN.md §5's own rule ("the owner picks the C&C model... the plan
+states this as an owner decision, never a security or quality claim") and cross-updated
+in `ROADMAP.md`/`TODO.md`/`TODO-Archive.md`. The concrete config value (whatever
+`config/providers.json`/the launch-settings key actually needs to say for "sonnet,
+latest") is item 4's own build work, not written here — this entry records the decision,
+not the implementation.

@@ -31,9 +31,7 @@ next; nothing here overrides that.
 3. **Measure his actual screen** — replaces §4's placeholder breakpoint/pane-floor pixel
    values with real ones. Not urgent; the shell already works and is tested against the
    placeholders.
-4. **Pick the actual C&C model** — item 4's acceptance test needs a real selection to
-   fully close, though item 4 can start against the mock without it.
-5. **Confirm whether Windows packaging is ever reopened** — not blocking anything
+4. **Confirm whether Windows packaging is ever reopened** — not blocking anything
    currently building.
 
 ## Real gaps carried from `DECISIONS.md`, not yet resolved
@@ -58,6 +56,5 @@ next; nothing here overrides that.
 
 ---
 
-*No completed items yet — the archive discipline above starts working from here
-forward: the next item closed in-session moves out of this file into
-`TODO-Archive.md`, not just gets a strikethrough.*
+*First archive move: "pick the actual C&C model" closed 2026-09-23 (owner decision,
+relayed by thcmcp-aa) — see `TODO-Archive.md`.*

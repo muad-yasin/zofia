@@ -58,9 +58,9 @@ session must never do"; `PLAN.md` §9.2).
 3. Not done — **Measure his actual screen.** Replaces §4's placeholder
    breakpoint/pane-floor pixel values (1280px/900px, 480×320) with real ones; not
    urgent, the shell already works and is tested against the placeholders.
-4. Not done — **Pick the actual C&C model.** Item 4's acceptance test needs a real
-   selection ("the displayed C&C model equals the owner's actual selection") to fully
-   close, though item 4 can start against the mock without it.
+4. ✅ **Pick the actual C&C model** — resolved 2026-09-23, relayed via thcmcp-aa:
+   "Sonnet, latest build" (Claude Code's own `sonnet` alias, not a pinned dated id). See
+   `DECISIONS.md`.
 5. Situational, not one-time — **Authorize any escalation past the safest response**,
    each time a §8 falsification trigger actually fires.
 6. Not done — **Confirm whether Windows packaging is ever reopened.** Not blocking
