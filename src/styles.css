@@ -175,10 +175,47 @@ body {
 
 .corner.empty {
   color: var(--text-muted);
-  font-style: italic;
   justify-content: center;
   align-items: center;
   text-align: center;
+}
+
+.assign-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.assign-form p {
+  font-style: italic;
+  margin: 0;
+}
+
+.assign-form input {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  background: var(--bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  padding: 0.25rem var(--sp-2);
+}
+
+.assign-form button {
+  font-family: var(--font-chrome);
+  font-size: 0.8125rem;
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  padding: 0.25rem var(--sp-3);
+  cursor: pointer;
+}
+
+.assign-form button:hover,
+.assign-form button:focus-visible {
+  border-color: var(--gold-bright);
 }
 
 .corner h2 {

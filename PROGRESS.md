@@ -29,7 +29,11 @@ One dated line per item, what's actually done vs. assumed (HANDOFF.md's own conv
   published docs plus the owner's own real, already-working statusline script. **Not
   yet done:** a live 10-minute capture against a real session — see `DECISIONS.md` for
   why, and PLAN.md §10 decision #2 for the actual gate.
-- 45 tests total, `node --test` from `reader/`, all passing.
+- 35 tests total (this entry originally said 45 — a miscount, not a later regression;
+  corrected 2026-09-22 during item 3 after a direct `node --test` recount: 4 cli + 13
+  deriveSnapshot + 5 install + 8 settingsPatch + 5 shim = 35. Now 36 after item 3 added
+  one more `deriveSnapshot.test.mjs` case for the rate_limits fix below), `node --test`
+  from `reader/`, all passing.
 
 **Acceptance test status (HANDOFF.md item 1): all closed.**
 - ✅ "the CLI prints valid JSON with all nine field keys, each carrying a source tag"
@@ -105,6 +109,42 @@ a concurrent Sophi-A dev server on 1420/1421 isn't clobbered.
 viewport sizes §4 names" — `test/e2e/shell.test.mjs`, all 8 passing. ✅ "zero `.svelte`
 imports" — same suite, asserted against the actual built JS output.
 
-**Not started yet:** item 3 (wire the reader into the shell) — gated on item 1's real
-field matrix per HANDOFF's own order, which itself is gated on the live capture (see
-item 1's entry above).
+## 2026-09-22 — item 3, week 2: wire the reader into the shell
+
+**Built and tested; not yet exercised against a real running Tauri window.**
+
+- `src-tauri/src/session_reader.rs` — a Rust port of `reader/src/deriveSnapshot.mjs` +
+  `sessionState.mjs`, field-by-field, including the rate_limits two-case fix from item 1
+  baked in from the start. Necessary rather than shelling out to the Node CLI: a packaged
+  AppImage can't assume a Node runtime. 16 tests, including a fixture-replay test using
+  the exact rate_limits-present-but-five_hour-missing shape item 1's live capture found.
+- `src-tauri/src/watcher.rs` — a `notify-debouncer-mini` watch (250ms debounce, per
+  PLAN.md §2.1) over the sessions directory, emitting a derived snapshot over Tauri's own
+  event system for any session_id the frontend has explicitly registered — never for one
+  it hasn't, even though the shim writes state for every session on the machine
+  (DECISIONS.md, item 1). `register_session` Tauri command also emits immediately on
+  registration so a pane isn't stuck on "no snapshot yet" until the next fs event.
+- `src/lib/reader/liveWiring.ts` — detects an actual Tauri webview
+  (`__TAURI_INTERNALS__`) vs. dev-server/e2e-test context; no-ops outside one, so
+  `main.ts`'s sample-data path (item 2, unchanged) still runs under `vite preview` and
+  Playwright.
+- `GridShell.ts` — a new `refresh()` method for re-rendering after async data arrives,
+  and a minimal "Assign session" text input + button per empty corner (PLAN.md §2.1:
+  registration is explicit, by the owner's own hand, never auto-discovered). Does not
+  persist across a restart — a real gap, flagged in `DECISIONS.md`, not hidden.
+- `test/e2e/shell.test.mjs` — 2 new tests (now 10 total): an explicit `UNKNOWN` chip on a
+  genuinely-unknown sample field, and the assign-form moving a corner out of "no session
+  assigned" into "no snapshot yet."
+
+**Acceptance test status (HANDOFF.md item 3):** ✅ the fixture-replay test — real
+shim-shaped fixture data through `derive_snapshot`, `cargo test`'s
+`fixture_replay_real_idle_session_shape`. ✅ "corner panes show measured fields and an
+explicit UNKNOWN chip for anything the probe didn't confirm" — both the Rust-side
+derive-correctness proof and the Playwright DOM-level proof above.
+
+**Not done:** a live launch of the actual Tauri app — verification is `cargo test` (no
+GUI) plus Playwright against `vite preview` (not Tauri), so the real
+`invoke("register_session", {sessionId})` → Rust `session_id: String` argument-name
+conversion has never fired at runtime; it relies on Tauri v2's documented default
+camelCase/snake_case convention, not a test that proves it end-to-end. See
+`DECISIONS.md`.

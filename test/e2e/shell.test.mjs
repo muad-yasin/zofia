@@ -1,6 +1,12 @@
 // HANDOFF.md item 2 acceptance test, literally: headless Chrome at the three
 // viewport sizes PLAN.md §4/§8 name, zero .svelte imports in the build, an
 // automated contrast check (axe-core) with zero violations at default and 200% zoom.
+//
+// Also covers item 3's own acceptance wording at the DOM level ("corner panes show
+// measured fields and an explicit UNKNOWN chip") — this suite runs outside any real
+// Tauri webview (vite preview only), so it exercises the sample-data path main.ts falls
+// back to, not the live Rust-backed pipeline (that's src-tauri/src/session_reader.rs's
+// own `cargo test`, including its fixture-replay test).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
@@ -177,6 +183,45 @@ test("axe-core: zero WCAG contrast violations at 200% zoom", async () => {
     await page.addScriptTag({ content: axeSource });
     const results = await page.evaluate(async (opts) => await window.axe.run(document, opts), AA_CONTRAST_ONLY);
     assert.equal(results.violations.length, 0, JSON.stringify(results.violations, null, 2));
+  } finally {
+    await page.close();
+  }
+});
+
+// HANDOFF.md item 3 acceptance: "corner panes show measured fields and an explicit
+// UNKNOWN chip for anything the probe didn't confirm."
+test("a genuinely-unknown field (sample-3's usage%/reset timer) renders an explicit UNKNOWN chip, never blank", async () => {
+  const page = await newPageAt(1280, 800);
+  try {
+    const corner = await page.$('[data-corner="2"]'); // main.ts: SAMPLE_SESSIONS[2] -> corner 2
+    assert.ok(corner, "expected sample-3 to be registered to corner 2");
+    const chipTexts = await corner.$$eval(".availability-chip", (els) => els.map((el) => el.textContent));
+    assert.ok(chipTexts.includes("UNKNOWN"), `expected an UNKNOWN chip among ${JSON.stringify(chipTexts)}`);
+    const usageRowText = await corner.$$eval(".field-row", (rows) => rows.find((r) => r.textContent?.includes("usage"))?.textContent ?? "");
+    assert.match(usageRowText, /UNKNOWN/, `usage field row should carry the UNKNOWN chip, got: ${usageRowText}`);
+  } finally {
+    await page.close();
+  }
+});
+
+// Item 3, PLAN.md §2.1: "the owner assigns a detected session_id to each corner pane by
+// hand" — never auto-discovered. This proves the assign control itself works end-to-end
+// at the DOM/registry level (Tauri's own register_session call is skipped outside a real
+// webview — isTauriRuntime() is false under vite preview — so this only exercises the
+// local registry+render path, not the backend RPC).
+test("assigning a session_id to the empty corner moves it out of 'no session assigned'", async () => {
+  const page = await newPageAt(1280, 800);
+  try {
+    const emptyCorner = await page.$('[data-corner="3"]'); // main.ts leaves corner 3 unregistered
+    assert.ok(emptyCorner, "expected an empty corner 3");
+    assert.match((await emptyCorner.textContent()) ?? "", /no session assigned/);
+
+    await emptyCorner.$eval("input", (el) => (el.value = "test-session-abc"));
+    await emptyCorner.$eval("button", (el) => el.click());
+
+    const afterText = await page.$eval('[data-corner="3"]', (el) => el.textContent || "");
+    assert.doesNotMatch(afterText, /no session assigned/, "corner should no longer show the empty-slot placeholder");
+    assert.match(afterText, /no snapshot yet/, "a registered session with no data yet should say so explicitly, not render blank");
   } finally {
     await page.close();
   }

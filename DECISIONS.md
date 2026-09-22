@@ -202,3 +202,63 @@ distinction. **What isn't known yet**: what actually brings `five_hour` back —
 API response in that session is the leading guess from the pattern observed (idle
 sessions lack it, active ones have it), not a confirmed trigger. Recorded as open in
 `docs/field-availability.md` rather than asserted.
+
+## 2026-09-22 — item 3 (wire the reader into the shell)
+
+**Field-deriving logic lives in Rust too, not reused from `reader/src/deriveSnapshot.mjs`
+directly — a deliberate duplication, not an oversight.** The packaged GUI binary can't
+shell out to the Node-based reader CLI without bundling a Node runtime into the AppImage,
+an undocumented dependency §6 (Linux packaging) never accounted for or tested against.
+`src/lib/layout/types.ts` already flagged this split during item 2 ("the reader is a
+standalone Node CLI and this is the browser-side shell... they're deliberately not the
+same build"), and PLAN.md §2.1 itself anticipates "the mechanism moves into a Rust
+`inotify` watcher once the GUI exists." So `src-tauri/src/session_reader.rs` ports every
+derive rule field-by-field, including the rate_limits two-case fix above baked in from
+the start, with its own mirrored test suite (16 tests, `cargo test`) rather than trusting
+parity by inspection. **Real risk this creates, named rather than hidden:** two
+codebases now implement the same rules; a future change to one without the other is a
+real bug class, the same shape as the `ALLOWED_PROVIDERS` hand-sync drift PLAN.md §5
+already cites as a lesson. Mitigation is discipline, not tooling, for v1 — both files'
+header comments point at each other.
+
+**Real bug caught by `cargo test`, not by design: `ZOFIA_SESSIONS_DIR` is process-wide
+env state, and Rust's test runner runs tests in parallel by default.** Three tests
+touching that env var raced each other nondeterministically (one run failed, `fixture
+must be found`, on the first `cargo test` invocation; passed on retry). Fixed by a
+`static Mutex<()>` those three tests lock first, serializing only themselves — not the
+whole suite. Left as a reminder: any future Rust test touching this env var needs the
+same lock, the same class of hazard `reader/test/shim.test.mjs`'s stdin bug already
+represents for this project (a real bug found by the test harness itself, not the code
+under test).
+
+**Chose a minimal "Assign session" form over either (a) no assignment UI or (b) a full
+session-picker.** PLAN.md §2.1 requires registration be "explicit, never automatic
+discovery — the owner assigns a detected session_id to each corner pane by hand," and
+HANDOFF's own CLI precedent (`zofia-reader.mjs`'s no-`--session` behavior: list what
+exists, let a human pick) implies a real assignment mechanism, not just backend plumbing
+nobody can trigger. But PLAN.md never specs a picker UI (no discovery-list design,
+no persistence-across-restart story), and building one now risks exactly the
+undisciplined scope-add HANDOFF's "what this session must never do" list warns against.
+Landed the smallest thing that's genuinely usable: a text input + button per empty
+corner, native and keyboard-accessible for free, calling the same `register_session`
+Tauri command the whole pipeline already needed. Session assignment does not persist
+across a restart — out of scope here, flagged for whenever item 3's UI gets revisited.
+
+**Not done: a live launch of the actual Tauri app.** Verification for this item is
+`cargo test` (16 tests, including a fixture-replay test using the real
+rate_limits-present-but-five_hour-missing shape from item 1's live capture) plus
+Playwright e2e against the built frontend (10 tests, 2 new: an explicit UNKNOWN chip on
+a genuinely-unknown field, and the assign-form moving a corner out of "no session
+assigned"). Both run outside a real Tauri webview by construction (`cargo test` has no
+GUI; `vite preview` isn't Tauri), so neither exercises the actual `invoke("register_session",
+{sessionId})` → Rust `session_id: String` argument-name conversion at runtime — this
+relies on Tauri v2's documented default camelCase-JS/snake_case-Rust convention, not a
+test that proves it end-to-end. Same posture item 1 already used for the honest-not-yet
+gate: named here rather than asserted as covered by the tests that do run.
+
+**Real bug (docs, not code): `BUILT.md`/`PROGRESS.md`'s item 1 entry both claimed "45
+tests total."** A direct `node --test` count from `reader/` gives 35 (before this item's
+own +1 test), not 45 — 4 (cli) + 13 (deriveSnapshot, now 14) + 5 (install) + 8
+(settingsPatch) + 5 (shim). Pre-existing inaccuracy from whoever wrote that line
+originally, not something this item's changes caused; corrected in `PROGRESS.md`/`BUILT.md`
+rather than left to compound.

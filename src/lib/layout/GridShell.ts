@@ -1,4 +1,4 @@
-import type { Field, RegisteredSession } from "./types.js";
+import type { CornerIndex, Field, RegisteredSession } from "./types.js";
 import type { PaneRegistry } from "./paneRegistry.js";
 
 const BREAKPOINT_FULL = 1280;
@@ -53,7 +53,7 @@ export class GridShell {
   private centerMinimized = false;
   private centerDrag: { dx: number; dy: number } | null = null;
 
-  constructor(root: HTMLElement, registry: PaneRegistry) {
+  constructor(root: HTMLElement, registry: PaneRegistry, private onAssignSession?: (corner: CornerIndex, sessionId: string) => void) {
     this.root = root;
     this.registry = registry;
     this.breakpoint = breakpointFor(window.innerWidth);
@@ -148,6 +148,14 @@ export class GridShell {
     this.announce(this.centerMinimized ? "Center seat minimized" : "Center seat restored");
   }
 
+  /** Re-renders against the registry's current state — call after `updateSnapshot`
+   * (item 3: real reader data arriving async via the Tauri event bridge). Public because
+   * the caller that owns the data feed lives outside this class (PLAN.md §2 and §4 don't
+   * cross-reference each other's data; this is the one deliberate seam between them). */
+  refresh(): void {
+    this.render();
+  }
+
   private onViewportResize(): void {
     const next = breakpointFor(window.innerWidth);
     if (next !== this.breakpoint) {
@@ -181,7 +189,16 @@ export class GridShell {
     const showTabStrip = windowSize < total;
 
     this.windowStart = Math.max(0, Math.min(this.windowStart, Math.max(0, total - windowSize)));
-    const visible = showTabStrip ? entries.slice(this.windowStart, this.windowStart + windowSize) : entries.slice(0, 4);
+    // Corners always occupy entries[0..4) (allEntries() puts them before overflow), so an
+    // absolute index under 4 IS the real corner slot regardless of tab-strip windowing —
+    // needed to route an empty-slot assignment (below) to the right registry slot even
+    // when the visible window doesn't start at 0.
+    const startIndex = showTabStrip ? this.windowStart : 0;
+    const visibleEntries = showTabStrip ? entries.slice(this.windowStart, this.windowStart + windowSize) : entries.slice(0, 4);
+    const visible = visibleEntries.map((session, i) => {
+      const absolute = startIndex + i;
+      return { session, cornerIndex: (absolute < 4 ? absolute : null) as CornerIndex | null };
+    });
 
     this.shellEl.dataset.windowSize = String(showTabStrip ? windowSize : 4);
     this.tabStripEl.hidden = !showTabStrip;
@@ -190,10 +207,10 @@ export class GridShell {
     if (showTabStrip) this.renderTabStrip(entries);
   }
 
-  private renderCorners(visible: (RegisteredSession | null)[]): void {
+  private renderCorners(visible: { session: RegisteredSession | null; cornerIndex: CornerIndex | null }[]): void {
     this.resizeObserver.disconnect();
     this.cornerGridEl.innerHTML = "";
-    visible.forEach((session, i) => {
+    visible.forEach(({ session, cornerIndex }, i) => {
       const el = document.createElement("section");
       el.className = "corner" + (session ? "" : " empty");
       el.tabIndex = 0;
@@ -201,7 +218,7 @@ export class GridShell {
       el.setAttribute("aria-label", session ? `Session: ${session.label}` : `Corner ${i + 1}: no session assigned`);
 
       if (!session) {
-        el.textContent = "no session assigned";
+        el.append(this.buildAssignForm(cornerIndex));
       } else {
         el.append(this.buildFullCard(session), this.buildCompactCard(session));
       }
@@ -209,6 +226,41 @@ export class GridShell {
       this.cornerGridEl.append(el);
       this.resizeObserver.observe(el, { box: "border-box" });
     });
+  }
+
+  /** Registration is explicit, never automatic discovery (PLAN.md §2.1) — this is the
+   * owner's own "assign a detected session_id to each corner pane by hand" action, not a
+   * scanned/auto-filled list. No-op if the shell was built without an assign callback
+   * (dev-server preview, e2e tests) — the corner just stays "no session assigned". */
+  private buildAssignForm(cornerIndex: CornerIndex | null): HTMLElement {
+    const wrap = document.createElement("div");
+    wrap.className = "assign-form";
+    const label = document.createElement("p");
+    label.textContent = "no session assigned";
+    wrap.append(label);
+
+    if (cornerIndex === null || !this.onAssignSession) return wrap;
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "session_id";
+    input.setAttribute("aria-label", `Assign a session to corner ${cornerIndex + 1}`);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "Assign";
+
+    const submit = () => {
+      const sessionId = input.value.trim();
+      if (!sessionId) return;
+      this.onAssignSession?.(cornerIndex, sessionId);
+    };
+    button.addEventListener("click", submit);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submit();
+    });
+
+    wrap.append(input, button);
+    return wrap;
   }
 
   private buildFullCard(session: RegisteredSession): HTMLElement {
