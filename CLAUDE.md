@@ -43,8 +43,10 @@ subscription. Private until the open-source release planned for later this year.
   panel that is supposed to be independent. The model that builds something never grades it.
 - **Ideas are free to study; code and prose are never copied.** Never port code from a
   differently-licensed project.
-- **Never delete files without asking.** Never commit secrets, keys, `.env` files, or any
-  session transcript or run output. Those contain the owner's private work.
+- **Never delete files without asking.** Never commit secrets, keys, `.env` files, Claude Code
+  session transcripts, or council run records (`BOARD*.md` and the `-cheap` copies, which are
+  gitignored). Those contain the owner's private work. `PLAN.md` and `HANDOFF.md` are the project's
+  own design docs and are committed.
 - **Branch convention is `master`.** Commit at a finished, tested item, and push each one.
 - **Human-stop gates are never skipped:** playtests, spend limits and legal review.
 

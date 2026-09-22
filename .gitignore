@@ -2,3 +2,8 @@ runs/
 .env
 *.env
 node_modules/
+
+# Council run records stay local (debate content); PLAN.md and HANDOFF.md are the project docs
+BOARD*.md
+*-cheap.md
+*-cheap-stalled.md
