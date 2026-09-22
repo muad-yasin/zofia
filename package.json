@@ -6,10 +6,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "node scripts/gen-providers.mjs && tsc && vite build",
+    "gen:providers": "node scripts/gen-providers.mjs",
+    "lint:providers": "node scripts/gen-providers.mjs --check",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "node --test test/e2e/"
+    "test": "node --test test/e2e/*.test.mjs",
+    "test:config": "node --test test/config/*.test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2"

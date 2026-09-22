@@ -1,0 +1,118 @@
+{
+  "$comment": "PLAN.md §5. The only authority for providers, models and effort. scripts/gen-providers.mjs validates config/providers.json against this file and fails the build on any violation. Only the keywords that script implements may appear here; it rejects any other keyword rather than ignoring it.",
+  "type": "object",
+  "required": ["version", "default_model", "providers", "aliases"],
+  "additionalProperties": false,
+  "properties": {
+    "$comment": { "type": "string" },
+    "version": { "const": 1 },
+    "default_model": {
+      "type": "object",
+      "required": ["value", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "$ref": "#/$defs/modelId" },
+        "source": { "$ref": "#/$defs/source" }
+      }
+    },
+    "providers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "launch", "models"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/$defs/providerId" },
+          "label": { "type": "string" },
+          "launch": {
+            "type": "object",
+            "required": ["kind", "effort_key"],
+            "additionalProperties": false,
+            "properties": {
+              "kind": { "enum": ["claude-code-cli"] },
+              "effort_key": {
+                "$comment": "Where a CLI-spawned seat's effort goes. Verify against current CLI docs; never guessed (PLAN.md §5).",
+                "$ref": "#/$defs/sourcedValue"
+              }
+            }
+          },
+          "models": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["id", "label", "source", "effort_levels"],
+              "additionalProperties": false,
+              "properties": {
+                "id": { "$ref": "#/$defs/modelId" },
+                "label": { "type": "string" },
+                "source": { "$ref": "#/$defs/source" },
+                "effort_levels": {
+                  "$comment": "UNKNOWN until owner decision 2 (TODO.md) picks values from item 1's measured matrix.",
+                  "anyOf": [
+                    { "const": "UNKNOWN" },
+                    {
+                      "type": "array",
+                      "minItems": 1,
+                      "items": {
+                        "type": "object",
+                        "required": ["level", "source"],
+                        "additionalProperties": false,
+                        "properties": {
+                          "level": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
+                          "source": { "$ref": "#/$defs/measuredSource" }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "aliases": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/modelId" },
+      "propertyNames": { "$ref": "#/$defs/notForbidden" }
+    }
+  },
+  "$defs": {
+    "notForbidden": {
+      "$comment": "Standing rule: no xAI/Grok anywhere (CLAUDE.md). Case-insensitive by construction; JS regex has no inline (?i).",
+      "type": "string",
+      "not": { "pattern": "[Gg][Rr][Oo][Kk]|(^|[/:])[Xx]-?[Aa][Ii]($|[/:_.-])" }
+    },
+    "providerId": {
+      "allOf": [
+        { "$ref": "#/$defs/notForbidden" },
+        { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+      ]
+    },
+    "modelId": {
+      "allOf": [
+        { "$ref": "#/$defs/notForbidden" },
+        { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/\\[\\]-]*$" }
+      ]
+    },
+    "source": { "type": "string", "pattern": "\\S" },
+    "measuredSource": {
+      "$comment": "Every effort value must point at item 1's measured matrix, or read UNKNOWN (HANDOFF item 7).",
+      "anyOf": [
+        { "const": "UNKNOWN" },
+        { "type": "string", "pattern": "^docs/field-availability\\.md#" }
+      ]
+    },
+    "sourcedValue": {
+      "type": "object",
+      "required": ["value", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": "string" },
+        "source": { "$ref": "#/$defs/measuredSource" }
+      }
+    }
+  }
+}

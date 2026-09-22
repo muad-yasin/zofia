@@ -18,3 +18,7 @@ blind/
 
 # Working review/audit notes - scratch, dated, never canonical (matches SMO's own /Review/)
 /Review/
+
+# Generated from config/providers.json by scripts/gen-providers.mjs (PLAN.md §5)
+src/generated/
+src-tauri/src/generated/
