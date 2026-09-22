@@ -1,0 +1,111 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const exec = promisify(execFile);
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const INSTALL = path.join(HERE, "..", "install", "install.mjs");
+const UNINSTALL = path.join(HERE, "..", "install", "uninstall.mjs");
+const SHIM_DIR = path.join(HERE, "..", "shim");
+
+async function withTmp(fn) {
+  const dir = await mkdtemp(path.join(tmpdir(), "zofia-install-test-"));
+  try {
+    await fn(dir);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+test("install.mjs defaults to dry-run: never writes settings.json without --apply --yes", async () => {
+  await withTmp(async (dir) => {
+    const settingsPath = path.join(dir, "settings.json");
+    const original = { statusLine: { type: "command", command: "echo hi" } };
+    await writeFile(settingsPath, JSON.stringify(original));
+
+    await exec("node", [INSTALL, "--settings-path", settingsPath, "--zofia-dir", path.join(dir, "zofia"), "--shim-dir", SHIM_DIR]);
+
+    const unchanged = JSON.parse(await readFile(settingsPath, "utf8"));
+    assert.deepEqual(unchanged, original);
+  });
+});
+
+test("install.mjs --apply --yes writes a backup, an install record, and the merged settings", async () => {
+  await withTmp(async (dir) => {
+    const settingsPath = path.join(dir, "settings.json");
+    const zofiaDir = path.join(dir, "zofia");
+    const original = { statusLine: { type: "command", command: "echo hi" }, otherStuff: true };
+    await writeFile(settingsPath, JSON.stringify(original));
+
+    const { stdout } = await exec("node", [INSTALL, "--settings-path", settingsPath, "--zofia-dir", zofiaDir, "--shim-dir", SHIM_DIR, "--apply", "--yes"]);
+    assert.match(stdout, /Installed\./);
+
+    const merged = JSON.parse(await readFile(settingsPath, "utf8"));
+    assert.match(merged.statusLine.command, /ZOFIA_ORIGINAL_STATUSLINE_CMD='echo hi'/);
+    assert.equal(merged.otherStuff, true);
+    assert.ok(merged.hooks.Stop);
+
+    const record = JSON.parse(await readFile(path.join(zofiaDir, "install-record.json"), "utf8"));
+    assert.equal(record.settings_path, settingsPath);
+    assert.ok(record.backup_path);
+    const backup = JSON.parse(await readFile(record.backup_path, "utf8"));
+    assert.deepEqual(backup, original);
+  });
+});
+
+test("uninstall.mjs restores the exact original file when nothing changed since install", async () => {
+  await withTmp(async (dir) => {
+    const settingsPath = path.join(dir, "settings.json");
+    const zofiaDir = path.join(dir, "zofia");
+    const original = { statusLine: { type: "command", command: "echo hi" }, otherStuff: true };
+    await writeFile(settingsPath, JSON.stringify(original));
+
+    await exec("node", [INSTALL, "--settings-path", settingsPath, "--zofia-dir", zofiaDir, "--shim-dir", SHIM_DIR, "--apply", "--yes"]);
+    await exec("node", [UNINSTALL, "--settings-path", settingsPath, "--zofia-dir", zofiaDir, "--apply", "--yes"]);
+
+    const restored = JSON.parse(await readFile(settingsPath, "utf8"));
+    assert.deepEqual(restored, original);
+  });
+});
+
+test("uninstall.mjs refuses when settings.json changed since install (hash mismatch), and doesn't touch the file", async () => {
+  await withTmp(async (dir) => {
+    const settingsPath = path.join(dir, "settings.json");
+    const zofiaDir = path.join(dir, "zofia");
+    await writeFile(settingsPath, JSON.stringify({ statusLine: { type: "command", command: "echo hi" } }));
+
+    await exec("node", [INSTALL, "--settings-path", settingsPath, "--zofia-dir", zofiaDir, "--shim-dir", SHIM_DIR, "--apply", "--yes"]);
+
+    const afterInstall = JSON.parse(await readFile(settingsPath, "utf8"));
+    afterInstall.someHandEdit = "the owner changed something";
+    await writeFile(settingsPath, JSON.stringify(afterInstall));
+
+    await assert.rejects(exec("node", [UNINSTALL, "--settings-path", settingsPath, "--zofia-dir", zofiaDir, "--apply", "--yes"]), (err) => {
+      assert.equal(err.code, 1);
+      assert.match(err.stderr, /hash mismatch/);
+      return true;
+    });
+
+    const stillThere = JSON.parse(await readFile(settingsPath, "utf8"));
+    assert.equal(stillThere.someHandEdit, "the owner changed something");
+  });
+});
+
+test("install.mjs is idempotent: running twice with --apply --yes doesn't duplicate hook entries", async () => {
+  await withTmp(async (dir) => {
+    const settingsPath = path.join(dir, "settings.json");
+    const zofiaDir = path.join(dir, "zofia");
+    await writeFile(settingsPath, JSON.stringify({}));
+
+    await exec("node", [INSTALL, "--settings-path", settingsPath, "--zofia-dir", zofiaDir, "--shim-dir", SHIM_DIR, "--apply", "--yes"]);
+    await exec("node", [INSTALL, "--settings-path", settingsPath, "--zofia-dir", zofiaDir, "--shim-dir", SHIM_DIR, "--apply", "--yes"]);
+
+    const merged = JSON.parse(await readFile(settingsPath, "utf8"));
+    assert.equal(merged.hooks.Stop.length, 1);
+  });
+});
