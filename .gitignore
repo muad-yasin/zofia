@@ -2,6 +2,10 @@ runs/
 .env
 *.env
 node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+test/e2e/screenshots/
 
 # Council run records stay local (debate content); PLAN.md and HANDOFF.md are the project docs
 BOARD*.md

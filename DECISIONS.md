@@ -65,3 +65,71 @@ stdin from Node.
 **`install.mjs --apply` has never been run against the real `~/.claude/settings.json`.**
 Every test uses `--settings-path` pointed at a temp file. Running it for real is the
 owner's call (PLAN.md §10 decision #2) — asked in chat, not assumed.
+
+## 2026-09-22 — item 2 (static shell)
+
+**PLAN.md and HANDOFF.md changed on disk mid-session, from another live session on
+this same machine.** `git log` showed four new commits (`573362b`…`b8acccd`) land
+between when this session started and when item 1 was committed, none of them mine.
+The last one (`b8acccd`) is a genuine C&C edit adding §4's pane floor (480×320px) and
+a "cost of being wrong" appendix — consistent with `FOCUS.md`'s own description of
+cnc-harness-0e finishing the HANDOFF/PLAN copy-in concurrently. Re-read both files in
+full before starting item 2 rather than building against a stale copy; the pane floor
+is incorporated below. Worth naming because it could easily have gone unnoticed — file
+sizes changed but no system notice flagged it the way CLAUDE.md's/FOCUS.md's own edits
+were flagged.
+
+**Reused Sophi-A's exact build-tool versions (Vite ^8.0.16, TypeScript ~6.0.3,
+@tauri-apps/cli ^2) rather than picking current latest.** PLAN.md §1 row 1 calls the
+Tauri+vanilla-TS stack "kept-unchanged" — read as continuity with the actual toolchain
+Sophi-A already runs, not just the architecture. Same reasoning for reusing Sophi-A's
+CSS custom-property palette (`~/Projects/sophi-a/src/styles.css`) rather than inventing
+a new one: same owner, same eventual license, already accessibility-considered (its own
+comment: "icon+label+color always together, never color alone"). Dev server ports moved
+1420/1421 → 1430/1431 so a concurrently-running Sophi-A dev server isn't port-blocked.
+
+**Real bug: `#app` vs `body` as the flex container.** First CSS draft put
+`display:flex; flex-direction:column` on `body`, but Vite mounts into `<div id="app">`,
+which is `body`'s only child — `#topbar`/`#shell` are `#app`'s children, not `body`'s,
+so the flex rules silently did nothing and `#shell` rendered at 0 height. Caught by the
+first Playwright test run (`page.waitForSelector` timed out because `#shell` resolved
+to a hidden 0-height element) — fixed by moving the flex container to `#app`. Left as a
+reminder for any future Vite-mounted app in this repo: the flex/grid root almost always
+needs to be the mount div, not `body`.
+
+**Real bug: pane-floor measured content-box, not border-box.** `ResizeObserver`'s
+default `contentRect` excludes padding; the 480×320 threshold from `b8acccd` reads as
+describing the pane's actual visible size (what you'd see/measure on screen), so a pane
+rendering at 350px tall (318px content height after 2×16px padding) wrongly tripped the
+floor and showed the compact one-line card instead of the full one — at a viewport size
+nowhere near small. Caught by inspecting a real screenshot, not by the automated tests
+(none of the 8 asserted on full-vs-compact card content). Fixed by observing
+`{box: "border-box"}` and reading `entry.borderBoxSize` instead. **Gap this leaves**:
+no automated test currently pins "full card renders at typical corner-pane sizes" — a
+future regression here would need another visual check to catch, same as this one was.
+
+**Real bug (test-only): first axe-core check asserted WCAG AAA, not AA.** Ran
+`runOnly: ["cat.color"]`, which pulled in `color-contrast-enhanced` (AAA, 7:1) alongside
+`color-contrast` (AA, 4.5:1/3:1) — PLAN.md §4 asks for AA specifically. The palette's
+muted text (6.5:1 on `--surface`) genuinely clears AA with margin; it just isn't AAA.
+Fixed the test to `runOnly: ["color-contrast"]` only. Not a design defect, a test
+over-scoping bug — recorded because it's the kind of thing worth getting right next
+time rather than loosening a real check to make it pass.
+
+**Tab-strip sliding-window design for the collapsed/overflow cases wasn't fully spelled
+out in PLAN.md §4** ("1×2 plus a tab strip" for the medium breakpoint, "the same tab
+strip" for 5th+ overflow sessions) — implemented as: always 4 conceptual tab entries
+(the fixed corner slots, empty ones included) plus overflow, a `windowSize` per
+breakpoint (4/2/1), and a sliding `windowStart` that a tab click moves into view.
+Chosen because it's one mechanism serving both pressures (viewport and session count)
+exactly as the plan asks, defaults to the literal "all 4, no tabs" case when neither
+pressure applies, and needed no separate pagination concept for overflow. Flagging as a
+judgment call, not a plan quote, since the plan didn't fully specify the mechanics.
+
+**Placeholder app icon generated, not designed.** `cargo check` refused to compile
+without one (`tauri::generate_context!()` panics if `icons/icon.png` is missing), and
+separately refused a plain RGB PNG — Tauri's icon loader requires RGBA, 8-bit depth
+specifically (a 16-bit RGBA export from ImageMagick's default also failed). Generated a
+simple gold-circle-on-dark placeholder from the shell's own palette
+(`src-tauri/icons/*.png`) purely so the scaffold compiles; this is not a real app icon
+and should be replaced with actual visual design before any real release.
