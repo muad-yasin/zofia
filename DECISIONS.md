@@ -133,3 +133,47 @@ specifically (a 16-bit RGBA export from ImageMagick's default also failed). Gene
 simple gold-circle-on-dark placeholder from the shell's own palette
 (`src-tauri/icons/*.png`) purely so the scaffold compiles; this is not a real app icon
 and should be replaced with actual visual design before any real release.
+
+## 2026-09-22 — item 1 (reader spike), install applied for real
+
+**`install.mjs --apply --yes` was run against the real `~/.claude/settings.json`**, superseding
+the note above that it never had been. Owner's go given in chat (PLAN.md §10 decision #2). Change
+was additive only — statusLine wrapped (original command preserved via
+`ZOFIA_ORIGINAL_STATUSLINE_CMD`, output passthrough), six hook events added where there were
+previously zero. Original backed up to `~/.claude/zofia/settings.json.<ts>.bak` before the write.
+An independent Opus 5 read-only audit afterward (diff scoped to exactly those two keys, statusline
+byte-identical output, hook script never hangs on empty/garbage stdin, install-record sha256
+matches the live file, no secrets touched) found it safe. thcmcp-aa separately verified the same
+facts from its own session and relayed to the owner.
+
+**Once installed, the shim observes every Claude Code session on the machine, not only the ones
+Zofia's own shell UI displays.** The hooks and statusLine wrapper live in the one shared
+`~/.claude/settings.json`, so any session process reads them — there is no per-session opt-in and
+no filtering by which sessions Zofia happens to be showing. Confirmed in practice: the capture
+directory picked up all five sessions that were running at install time, including this build
+session and unrelated peer sessions, not a chosen subset. Worth stating plainly (flagged by
+thcmcp-aa's independent check) because it's a real scope fact for the privacy requirement in
+`CLAUDE.md`, not just an implementation detail — anyone deciding whether to run the installer
+should know it's machine-wide, not opt-in per session.
+
+**The live 10-minute capture ran for real, against this session's own id
+(`d55b834d-d581-4891-9429-5afbe96e9f96`), closing item 1's last open acceptance test.**
+`zofia-reader.mjs --session <this session>` returned valid JSON with all nine keys (`tokenSpend`
+counted once per the earlier reconciliation), each with a `source`, `observed_at` timestamps ~627s
+after install — genuinely spanning the window, not a re-run snapshot — and `activityState`
+correctly reflecting the most recent real hook event (`PreToolUse` / Bash) rather than a stale
+install-time value, proving the hooks kept firing live throughout, not just once at install.
+
+**One real nuance caught while checking the "opens no transcript file" claim against a live
+session, not the test fixture.** The transcript's `atime` did move during the window (baseline
+vs. after), which looked at first like a regression. It isn't: `stat` shows `mtime` newer than the
+new `atime`, the filesystem is mounted `relatime` (`findmnt`), and this session's own Claude Code
+process was continuously appending to that same transcript file throughout the window for
+unrelated reasons (normal conversation logging) — under `relatime`, a write bumps `atime` forward
+whenever it was older than `mtime`, independent of any read. Confirmed by source inspection that
+`zofia-reader.mjs` has no code path that opens a transcript file at all (stated in its own header
+comment). **Consequence:** the atime check in `reader/test/cli.test.mjs` is a clean signal against
+a static fixture (nothing else touches that file), but is not a reliable signal on a live,
+actively-written real session — the source-level guarantee (no transcript-reading code path) is
+what actually proves the claim there, not atime-watching. Worth remembering if a future check
+tries to verify "nothing read this file" against a real session again.

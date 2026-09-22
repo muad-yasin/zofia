@@ -31,15 +31,28 @@ One dated line per item, what's actually done vs. assumed (HANDOFF.md's own conv
   why, and PLAN.md §10 decision #2 for the actual gate.
 - 45 tests total, `node --test` from `reader/`, all passing.
 
-**Acceptance test status (HANDOFF.md item 1):**
+**Acceptance test status (HANDOFF.md item 1): all closed.**
 - ✅ "the CLI prints valid JSON with all nine field keys, each carrying a source tag"
   — `reader/test/cli.test.mjs`.
 - ✅ "the default run opens no transcript file" — no code path reads one; regression
   test plants a canary and checks the file's `atime`.
 - ✅ "a planted canary string is absent from every output" — same test.
-- ⏳ The spike's own instruction to "run against one real, manually-opened session for
-  the full 10-minute window" is not done — needs the owner's go on PLAN.md §10
-  decision #2 first (installing into his real `~/.claude/settings.json`).
+- ✅ **2026-09-22, closed for real.** Owner approved installing into his real
+  `~/.claude/settings.json` (PLAN.md §10 decision #2); `install.mjs --apply --yes` run,
+  additive only (statusLine wrapped with passthrough, 6 hooks added where there were
+  none), backed up first. An independent Opus 5 read-only audit and thcmcp-aa's own
+  separate check both confirmed the edit safe — see `DECISIONS.md`. The 10-minute live
+  capture then ran against this session's own id: valid JSON, all nine keys with
+  sources, `observed_at` ~627s after install (a real window, not a re-run), and
+  `activityState` reflecting a live hook event rather than a stale install-time value —
+  proof the hooks kept firing throughout. One nuance recorded in `DECISIONS.md`: the
+  transcript's `atime` did move during the window, traced to this session's own normal
+  writes under `relatime`, not to any transcript read — the real guarantee is the
+  source-level fact that `zofia-reader.mjs` has no code path that opens a transcript at
+  all.
+
+**Item 1 is fully done.** Next: item 3 (wire the reader into the shell) is unblocked —
+was gated on this real field matrix, which now exists.
 
 ## 2026-09-22 — item 2, week 1 Track B: the static shell
 
