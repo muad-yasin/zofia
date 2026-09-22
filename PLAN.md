@@ -268,6 +268,11 @@ both authors' own amends drop Svelte; the layout ships as `src/lib/layout/GridSh
 - Fixed top nav bar, 64px (touch-target + title space). Four corner panes, center pane
   position-absolute, capped at ≤40% viewport width/height (a **ceiling**, not a target, making the
   owner's own "never reaching too much into the visual portion" line testable), draggable/minimizable.
+- **Pane floor (placeholder, C&C edit 2026-09-22):** a corner pane never renders below **480×320 px**;
+  under that the slot shows a compact one-line state card (model + availability chip) instead of the
+  full card. This value is a placeholder, like the breakpoints above, and §10 decision 3 replaces both
+  with measurements from the owner's real screen. Added because §10 already promised §4 would state a
+  pane-floor value and §4 did not.
 - **Viewport breakpoints** (screen size, independent of session count): ≥1280px shows the full 2×2
   corner grid; 900-1279px collapses to 1×2 plus a tab strip; below 900px, a single tabbed pane.
 - **Session-count scaling** (a distinct axis from viewport size, real content a prior draft left
@@ -678,3 +683,26 @@ target mid-document.
 6. **Confirm whether Windows packaging is ever reopened** (§1, §6) — deliberately dropped for v1
    rather than assumed wanted later.
 7. **Decide real effort-tier values** (§5) once the week-1 probe shows what's actually configurable.
+## Appendix: C&C edits (thcmcp-aa), 2026-09-22
+
+The council's own deliverable is unedited in THCMCP `runs/2026-09-22T16-38-54-363Z/deliverable.md`.
+This copy carries two additions, both from a blind comparison against the cheap run's plan, judged by
+a session that saw neither run's identity:
+
+1. **§4 pane floor** (above): §10 promised a pane-floor value that §4 never stated.
+2. **Cost of being wrong** (below): both plans named what gets reopened when a bet fails, but neither
+   put a size on it. Estimates in build-days, stated as estimates, not commitments.
+
+### Cost of being wrong
+
+- **The week-1 probe finds the statusline fields unreadable** (the central bet): items 3 and 4 lose
+  their data source. Sunk: the probe itself, about 3-5 build-days. The fallback ladder in §8 is then
+  the product, not a contingency, so the owner decides whether a GUI showing mostly `UNKNOWN` chips is
+  still worth building before item 3 starts.
+- **The owner's ToS check rules out driving a `claude` process** (item 8): the center seat is cut.
+  Sunk: item 4, about 4-6 build-days against the mock. Items 1-3, 5 and 6 are unaffected: they only
+  observe. The GUI degrades to a four-pane monitor, which is still most of the owner's own spec.
+- **AppImage packaging fails on the target baseline** (item 5): about 2 build-days, and the fallback is
+  a plain tarball plus a `.desktop` file. No other item depends on it.
+- **A later-year roadmap trigger never fires:** nothing is sunk by design. Years 2-7 are gated, not
+  committed, so an unfired trigger costs a review, not rework.

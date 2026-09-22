@@ -35,6 +35,11 @@ order beyond that. Do not start item N+1 until item N's acceptance test passes a
    effort value carries a source tag pointing at item 1's measured matrix, or reads `UNKNOWN`.
 8. **Real-subscription center-seat testing** — only after the owner has completed §10 decision 1
    (reading Anthropic's ToS himself). Do not test against his real subscription before that.
+9. **Scope-ledger lint** (added by C&C 2026-09-22, after a blind comparison: the cheap run's plan
+   carried this and the premium plan didn't). A script that reads PLAN.md's Scope ledger and fails if
+   a proposal id is referenced anywhere in the plan but missing from the ledger, or vice versa. Build
+   it last; it blocks nothing. Acceptance: the script exits non-zero on a deliberately broken fixture
+   and zero on the real PLAN.md.
 
 ## Files to keep current while building
 
@@ -73,3 +78,4 @@ PLAN.md names) — no external reviewer/checker tool is assumed.
 The council's handoff is in THCMCP `runs/2026-09-22T16-38-54-363Z/HANDOFF.md`, unedited. This copy got three
 changes: item 2 runs after item 1 rather than in parallel, per CLAUDE.md's usage budget; item 4's
 gate reference is corrected from item 7 to item 8; and item 7 gets the acceptance test it was missing.
+Item 9 (scope-ledger lint) was added later the same day, after the blind comparison.
