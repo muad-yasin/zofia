@@ -19,6 +19,16 @@ subscription. Private until the open-source release planned for later this year.
 > What Muad wants from this new project: a linux .appimage GUI that essentially runs multiple Claude Code terminal sessions, through a Claude Code subscription. It is OK if the setup requires to manually open Claude Code in several terminals on my linux machine, to then have the GUI as a better C&C overview of what the several sessions are doing.
 > What I have currently planned in my head: the screen gets cut into 4 corners, with a big navigation bar / menu bar at the top, and the C&C seat being in the middle of the screen, but never reaching too much into the visual portion of the 4 other sessions' part of the screen. Essentially 4 Claude Code sessions, and one extra Claude Code session in the middle of the screen, where I can chat with the C&C session but also see what the other sessions are doing, when they were last active, what their current Claude Code statusline says about model, effort, usage%, reset timer for 5h limit, used context in %. As well see what the Claude Code session is currently doing, thinking, working, building, token spending and the "XYZ for 49s . done XX:YY" things that Claude Code displays. And I want to later release it as open source where people can use other provider token subscriptions, or even use local LLM's for everything if they want to.
 
+## Usage budget (the owner is on the $100 Claude plan)
+
+- **Work in this one session.** Don't use subagents, workflows or multi-agent orchestration unless
+  the owner asks for them in chat. If one task really needs parallel help, ask first, say how many
+  agents it would need and why, and never go above 2 at once. Subagents never spawn subagents.
+- Prefer targeted reads (a specific file, `grep`) over broad exploration of the repo or of
+  `~/Projects`.
+- When the 5-hour usage limit gets close, finish the current item, commit and push, then stop and
+  say where you stopped. Don't start a new item you can't finish.
+
 ## Rules that are not style preferences
 
 - **Privacy is a hard requirement.** Zofia reads other sessions' state on the owner's machine.
