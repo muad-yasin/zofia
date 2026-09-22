@@ -38,6 +38,9 @@ subscription. Private until the open-source release planned for later this year.
   observe Claude Code sessions on a consumer subscription. Observing sessions the owner opened
   himself is the default. Anything that automates the subscription (injecting input, spawning
   sessions on his behalf, scraping auth) needs his explicit go first.
+  **Given 2026-09-22 for the center seat only:** the GUI may spawn its own `claude` process and
+  send the owner's typed chat into it (HANDOFF item 4, against a mock first). Using it on his real
+  subscription still waits on HANDOFF item 8, after he has read Anthropic's terms himself.
 - **No efficacy claims** in any README, page or doc until something is actually measured.
 - **Model and lab rules carry over from THCMCP:** no xAI/Grok anywhere. Kimi K3 never sits on a
   panel that is supposed to be independent. The model that builds something never grades it.
