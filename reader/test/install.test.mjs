@@ -130,3 +130,20 @@ test("install twice, then uninstall, restores the exact original file", async ()
     assert.deepEqual(JSON.parse(await readFile(settingsPath, "utf8")), JSON.parse(original));
   });
 });
+
+// C&C reader LOW, 2026-09-23: backups are copies of the owner's settings.
+test("installer backups are 0600, and a re-install over unchanged settings doesn't add another", async () => {
+  await withTmp(async (dir) => {
+    const settingsPath = path.join(dir, "settings.json");
+    const zofiaDir = path.join(dir, "zofia");
+    await writeFile(settingsPath, JSON.stringify({ theme: "dark" }));
+    const args = ["--settings-path", settingsPath, "--zofia-dir", zofiaDir, "--shim-dir", SHIM_DIR, "--apply", "--yes"];
+    await exec("node", [INSTALL, ...args]);
+    await exec("node", [INSTALL, ...args]); // the settings now differ (Zofia's own entries): a second backup
+    await exec("node", [INSTALL, ...args]); // unchanged since the last run: no third
+    const { readdir, stat } = await import("node:fs/promises");
+    const baks = (await readdir(zofiaDir)).filter((n) => n.endsWith(".bak"));
+    assert.equal(baks.length, 2, baks.join(", "));
+    for (const b of baks) assert.equal(((await stat(path.join(zofiaDir, b))).mode & 0o777).toString(8), "600");
+  });
+});

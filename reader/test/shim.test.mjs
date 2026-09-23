@@ -167,3 +167,18 @@ test("a session_id with a path in it is never written, and the fallback dir is p
   await new Promise((r) => probe.on("close", r));
   assert.equal(out.trim(), `/tmp/zofia-${process.getuid()}/sessions`);
 });
+
+// C&C reader LOW, 2026-09-23: a held lock must not stall the hook for long.
+test("a hook write gives up after ~2s on a held lock and exits 0", async () => {
+  await withSessionsDir(async (dir) => {
+    const lock = path.join(dir, ".sess-lock.lock");
+    const holder = spawn("flock", ["-x", lock, "sleep", "6"]);
+    await new Promise((r) => setTimeout(r, 300));
+    const started = Date.now();
+    await runScript("hook-writer.sh", JSON.stringify({ session_id: "sess-lock", hook_event_name: "Stop" }), { ZOFIA_SESSIONS_DIR: dir });
+    const took = Date.now() - started;
+    holder.kill();
+    assert.ok(took >= 1800 && took < 4000, `took ${took}ms`);
+    await assert.rejects(stat(path.join(dir, "sess-lock.json")), "the timed-out update was dropped");
+  });
+});

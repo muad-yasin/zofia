@@ -6,7 +6,7 @@
 // This script has never been run against the owner's real ~/.claude/settings.json —
 // PLAN.md §10 decision #2 requires his own confirmation first. See DECISIONS.md.
 
-import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
+import { readFile, writeFile, mkdir, rename, readdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import os from "node:os";
@@ -72,10 +72,13 @@ async function main() {
     return 0;
   }
 
-  await mkdir(args.zofiaDir, { recursive: true });
-  const backupPath = path.join(args.zofiaDir, `settings.json.${Date.now()}.bak`);
+  await mkdir(args.zofiaDir, { recursive: true, mode: 0o700 });
+  // Backups are copies of the owner's settings: 0600, like the file itself. A re-install
+  // over unchanged settings reuses the latest backup instead of piling up identical ones.
+  // Old backups are never deleted automatically (the owner decides that).
   const originalText = JSON.stringify(settings, null, 2) + "\n";
-  await writeFile(backupPath, originalText, "utf8");
+  const backupPath = (await latestIdenticalBackup(args.zofiaDir, originalText)) ?? path.join(args.zofiaDir, `settings.json.${Date.now()}.bak`);
+  await writeFile(backupPath, originalText, { encoding: "utf8", mode: 0o600 });
 
   await mkdir(path.dirname(args.settingsPath), { recursive: true });
   await atomicWrite(args.settingsPath, nextText);
@@ -94,6 +97,15 @@ async function main() {
   process.stdout.write(`\nInstalled. Backup of the previous file: ${backupPath}\n`);
   process.stdout.write(`Install record: ${path.join(args.zofiaDir, "install-record.json")}\n`);
   return 0;
+}
+
+async function latestIdenticalBackup(dir, text) {
+  const names = (await readdir(dir)).filter((n) => /^settings\.json\.\d+\.bak$/.test(n));
+  names.sort((a, b) => Number(a.split(".")[2]) - Number(b.split(".")[2]));
+  const latest = names.at(-1);
+  if (!latest) return null;
+  const p = path.join(dir, latest);
+  return (await readFile(p, "utf8")) === text ? p : null;
 }
 
 main().then(

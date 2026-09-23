@@ -50,7 +50,9 @@ zofia_merge_state() {
   local file="$dir/$session_id.json"
   local lock="$dir/.$session_id.lock"
   (
-    flock -x 200
+    # Bounded wait: a stuck holder must never stall Claude Code's statusline or hook for
+    # long. Past 2s this one update is dropped; the next event writes a fresh one.
+    flock -w 2 -x 200 || exit 0
     local existing="{}"
     if [ -s "$file" ]; then
       existing="$(cat "$file" 2>/dev/null || echo '{}')"
