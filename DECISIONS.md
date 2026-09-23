@@ -385,3 +385,15 @@ not the implementation.
   parses the same file and derives the other fields, so the two readers still differ
   on type mismatches. The error is now at least named correctly. Per-field tolerant
   parsing is a separate change, not made here.
+
+## 2026-09-23 — Rust reader per-field parsing (zofia-26)
+
+- **Resolves the "#9, still open" note above.** Instead of per-field `deserialize_with`
+  wrappers, the parser runs a type check against a path table, then does the existing
+  strict deserialize. The derive functions are unchanged, and the table is one place to
+  read the schema.
+- **Numbers:** integer fields (epochs, token counts) accept any finite number, floored.
+  The Node reader accepts any number there, and a float epoch is the same instant, so
+  this isn't a guess. A string or object is refused.
+- **Remaining difference, wording only:** for a mistyped value the Node reader says "not
+  yet observed", and the Rust reader says "present but mistyped". Both show UNKNOWN.

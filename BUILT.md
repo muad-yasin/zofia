@@ -53,3 +53,5 @@ id(s) it serves (HANDOFF.md's own "files to keep current while building" rule).
   GLM53-1): `9b7117c` shell re-render keeps input/focus, reset/last-active/duration
   rows, e2e builds first (#5, #6, #7); `0e2450b` watcher 15s re-derive tick and parse
   errors reported as such (#3, #9). e2e 12/12, cargo test 54/54.
+- 2026-09-23 — Rust reader per-field parsing (PLAN.md §2.2, GLM53-1): `43c3704`.
+  cargo test 57/57.

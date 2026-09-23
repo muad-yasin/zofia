@@ -230,3 +230,9 @@ symlink-safe bounded walk, baseline before spawn, process-group kill, env additi
   the parse error instead of "shim isn't installed". cargo test 54/54. **Not
   verified:** the ticker's wiring inside `start_watcher` needs a live Tauri app; only the
   ticker and the re-derive behaviour are tested.
+
+## 2026-09-23 — Rust reader per-field parsing (zofia-26, C&C follow-up to audit #9)
+
+**Done (`43c3704`):** a mistyped value in a session state file now blanks only its own
+field, with a "present but mistyped" reason. The rest of the snapshot still renders.
+cargo test 57/57, including a mistyped-field fixture test.
