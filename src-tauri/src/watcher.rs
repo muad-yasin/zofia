@@ -141,10 +141,11 @@ mod tests {
         out
     }
 
-    // Audit F9: a type mismatch used to be swallowed into "the shim isn't installed".
+    // Audit F9: a parse failure used to be swallowed into "the shim isn't installed". (A
+    // single mistyped field no longer fails the file at all; session_reader's own tests.)
     #[test]
     fn unparseable_state_reports_the_parse_error_not_missing_shim() {
-        let body = r#"{"pid":1,"latest_statusline":{"observed_at":10,"rate_limits":{"five_hour":{"used_percentage":5,"resets_at":"soon"}}}}"#;
+        let body = r#"{"pid":1,"latest_statusline":{"observed_at":10,"#;
         let snap = with_state_file("f9", body, || snapshot_for("f9", 100));
         assert_eq!(snap.model.availability, "unknown");
         assert!(snap.model.source.contains("not valid JSON"), "{}", snap.model.source);

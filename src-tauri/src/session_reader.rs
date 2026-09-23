@@ -38,15 +38,129 @@ pub fn session_state_path(session_id: &str) -> PathBuf {
 
 /// Reads and parses one session's raw state file. `Ok(None)` means never observed yet
 /// (file absent) — not an error, mirroring `sessionState.mjs`'s own ENOENT handling.
+/// `Err` only for a file that isn't a JSON object at all; a mistyped field is nulled
+/// and recorded instead (see `type_check`), so it blanks that field alone.
 pub fn read_session_state(session_id: &str) -> Result<Option<RawSessionState>, String> {
     let path = session_state_path(session_id);
     match std::fs::read_to_string(&path) {
-        Ok(text) => serde_json::from_str(&text)
+        Ok(text) => parse_session_state(&text)
             .map(Some)
-            .map_err(|e| format!("session state file for \"{session_id}\" is unreadable or not valid JSON: {e}")),
+            .map_err(|e| format!("session state file for \"{session_id}\" is {e}")),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(format!("session state file for \"{session_id}\" is unreadable: {e}")),
     }
+}
+
+/// Parses a state file's text. Per-field, like the Node reader (audit follow-up to F9,
+/// 2026-09-23): strict serde used to reject the whole file over one mistyped value, e.g.
+/// `resets_at` as a string, and every field went UNKNOWN.
+pub fn parse_session_state(text: &str) -> Result<RawSessionState, String> {
+    let mut v: serde_json::Value =
+        serde_json::from_str(text).map_err(|e| format!("unreadable or not valid JSON: {e}"))?;
+    if !v.is_object() {
+        return Err("not a JSON object".to_string());
+    }
+    let mismatches = type_check(&mut v);
+    let mut raw: RawSessionState =
+        serde_json::from_value(v).map_err(|e| format!("in an unexpected shape after the type check: {e}"))?;
+    raw.type_mismatches = mismatches;
+    Ok(raw)
+}
+
+#[derive(Clone, Copy)]
+enum Kind {
+    Obj,
+    Str,
+    Num,
+    Int,
+    Pid,
+}
+
+/// Every leaf the derive functions read, parents before children, with the JSON type it
+/// must have. Mirrors the `Raw*` structs below.
+const SCHEMA: &[(&str, Kind)] = &[
+    ("/pid", Kind::Pid),
+    ("/latest_statusline", Kind::Obj),
+    ("/latest_statusline/observed_at", Kind::Int),
+    ("/latest_statusline/model", Kind::Obj),
+    ("/latest_statusline/model/id", Kind::Str),
+    ("/latest_statusline/model/display_name", Kind::Str),
+    ("/latest_statusline/effort", Kind::Obj),
+    ("/latest_statusline/effort/level", Kind::Str),
+    ("/latest_statusline/rate_limits", Kind::Obj),
+    ("/latest_statusline/rate_limits/five_hour", Kind::Obj),
+    ("/latest_statusline/rate_limits/five_hour/used_percentage", Kind::Num),
+    ("/latest_statusline/rate_limits/five_hour/resets_at", Kind::Int),
+    ("/latest_statusline/context_window", Kind::Obj),
+    ("/latest_statusline/context_window/used_percentage", Kind::Num),
+    ("/latest_statusline/context_window/total_input_tokens", Kind::Int),
+    ("/latest_statusline/context_window/total_output_tokens", Kind::Int),
+    ("/latest_statusline/cost", Kind::Obj),
+    ("/latest_statusline/cost/total_cost_usd", Kind::Num),
+    ("/latest_hook_event", Kind::Obj),
+    ("/latest_hook_event/observed_at", Kind::Int),
+    ("/latest_hook_event/hook_event_name", Kind::Str),
+    ("/latest_hook_event/tool_name", Kind::Str),
+    ("/latest_hook_event/notification_type", Kind::Str),
+    ("/latest_hook_event/end_reason", Kind::Str),
+];
+
+/// Without these a whole sub-object is unusable: nothing in it can be timestamped, and a
+/// hook event with no name says nothing. The sub-object is dropped, and recorded.
+const REQUIRED: &[(&str, &[&str])] = &[
+    ("/latest_statusline", &["observed_at"]),
+    ("/latest_hook_event", &["observed_at", "hook_event_name"]),
+];
+
+/// Nulls every value whose JSON type doesn't match `SCHEMA` and returns one
+/// "path: problem" line per null. A whole-number-valued float for an integer field is a
+/// representation difference, not a wrong value, so it's accepted and normalized, as is
+/// any finite number (floored) for an epoch/token count; everything else is refused.
+fn type_check(v: &mut serde_json::Value) -> Vec<String> {
+    use serde_json::Value;
+    let mut out = Vec::new();
+    for (path, kind) in SCHEMA {
+        let Some(slot) = v.pointer_mut(path) else { continue };
+        if slot.is_null() {
+            continue;
+        }
+        let fixed: Option<Value> = match (kind, &*slot) {
+            (Kind::Obj, Value::Object(_)) | (Kind::Str, Value::String(_)) | (Kind::Num, Value::Number(_)) => None,
+            (Kind::Int, Value::Number(n)) if n.is_i64() => None,
+            (Kind::Int, Value::Number(n)) => match n.as_f64() {
+                Some(f) if f.is_finite() && f.abs() < 9.0e15 => Some(Value::from(f.floor() as i64)),
+                _ => Some(Value::Null),
+            },
+            (Kind::Pid, Value::Number(n)) if n.as_u64().is_some_and(|p| p <= u32::MAX as u64) => None,
+            _ => Some(Value::Null),
+        };
+        if let Some(new) = fixed {
+            if new.is_null() {
+                let mut shown = slot.to_string();
+                if shown.len() > 40 {
+                    shown.truncate(40);
+                    shown.push('…');
+                }
+                let want = match kind {
+                    Kind::Obj => "an object",
+                    Kind::Str => "a string",
+                    Kind::Num => "a number",
+                    Kind::Int => "an integer",
+                    Kind::Pid => "a process id",
+                };
+                out.push(format!("{path}: expected {want}, got {shown}"));
+            }
+            *slot = new;
+        }
+    }
+    for (parent, keys) in REQUIRED {
+        let Some(obj) = v.pointer(parent).and_then(|p| p.as_object()) else { continue };
+        if let Some(k) = keys.iter().find(|k| obj.get(**k).map_or(true, |x| x.is_null())) {
+            out.push(format!("{parent}/{k}: missing or mistyped, so all of {parent} was set aside"));
+            *v.pointer_mut(parent).unwrap() = serde_json::Value::Null;
+        }
+    }
+    out
 }
 
 pub fn default_is_pid_alive(pid: u32) -> bool {
@@ -60,6 +174,9 @@ pub struct RawSessionState {
     pub pid: Option<u32>,
     pub latest_statusline: Option<RawStatusline>,
     pub latest_hook_event: Option<RawHookEvent>,
+    /// Filled by `parse_session_state`, never read from the file.
+    #[serde(skip)]
+    pub type_mismatches: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -179,7 +296,7 @@ pub fn derive_snapshot(
     let sl = raw.latest_statusline.as_ref();
     let hook = raw.latest_hook_event.as_ref();
 
-    SessionSnapshot {
+    let mut snap = SessionSnapshot {
         session_id: session_id.to_string(),
         model: derive_model(sl),
         effort: derive_effort(sl),
@@ -190,7 +307,58 @@ pub fn derive_snapshot(
         duration_line: derive_duration_line(),
         token_spend: TokenSpend { usd: derive_token_spend_usd(sl), tokens: derive_token_spend_tokens(sl) },
         last_active_time: derive_last_active_time(sl, hook),
+    };
+    mark_mistyped(&mut snap, &raw.type_mismatches);
+    snap
+}
+
+/// Whether mismatch line `m` ("path: problem") explains why leaf `read` is missing: the
+/// leaf itself, a parent it sits under, or a sub-object set aside for a missing required
+/// key (recorded under that key's path, so compare against the key's parent).
+fn affects(read: &str, m: &str) -> bool {
+    let path = m.split(": ").next().unwrap_or("");
+    let under = |p: &str| read == p || read.starts_with(&format!("{p}/"));
+    if under(path) {
+        return true;
     }
+    m.contains("set aside") && path.rsplit_once('/').is_some_and(|(parent, _)| under(parent))
+}
+
+/// For a field that came out `unknown` because a value it reads was mistyped, replaces the
+/// generic "not observed" reason with the real one. Never touches a derived value.
+fn mark_mistyped(snap: &mut SessionSnapshot, mismatches: &[String]) {
+    if mismatches.is_empty() {
+        return;
+    }
+    const SL: &str = "/latest_statusline";
+    const HOOK: &str = "/latest_hook_event";
+    fn fix<T>(f: &mut FieldOut<T>, reads: &[&str], mismatches: &[String]) {
+        if f.availability != "unknown" {
+            return;
+        }
+        let hits: Vec<&str> = mismatches
+            .iter()
+            .filter(|m| reads.iter().any(|r| affects(r, m)))
+            .map(String::as_str)
+            .collect();
+        if !hits.is_empty() {
+            f.source = format!("present but mistyped, shown UNKNOWN rather than guessed: {}", hits.join("; "));
+        }
+    }
+    let m = mismatches;
+    fix(&mut snap.model, &[&format!("{SL}/model/display_name")], m);
+    fix(&mut snap.effort, &[&format!("{SL}/effort/level")], m);
+    fix(&mut snap.usage_percent, &[&format!("{SL}/rate_limits/five_hour/used_percentage")], m);
+    fix(&mut snap.reset_timer, &[&format!("{SL}/rate_limits/five_hour/resets_at")], m);
+    fix(&mut snap.context_percent, &[&format!("{SL}/context_window/used_percentage")], m);
+    fix(&mut snap.activity_state, &[&format!("{HOOK}/hook_event_name")], m);
+    fix(&mut snap.token_spend.usd, &[&format!("{SL}/cost/total_cost_usd")], m);
+    fix(
+        &mut snap.token_spend.tokens,
+        &[&format!("{SL}/context_window/total_input_tokens"), &format!("{SL}/context_window/total_output_tokens")],
+        m,
+    );
+    fix(&mut snap.last_active_time, &[&format!("{SL}/observed_at"), &format!("{HOOK}/observed_at")], m);
 }
 
 /// Every field `unknown`, all carrying the same `reason`. Used when there's no state to
@@ -407,7 +575,7 @@ pub(crate) mod tests {
 
     #[test]
     fn full_statusline_payload_exposed() {
-        let raw = RawSessionState { pid: None, latest_statusline: Some(base_sl(1000)), latest_hook_event: None };
+        let raw = RawSessionState { pid: None, latest_statusline: Some(base_sl(1000)), latest_hook_event: None, type_mismatches: Vec::new() };
         let snap = derive_snapshot("s1", Some(&raw), 1000, &alive);
         assert_eq!(snap.model.availability, "exposed");
         assert_eq!(snap.model.value.unwrap().display_name, "Sonnet 5");
@@ -424,7 +592,7 @@ pub(crate) mod tests {
     fn rate_limits_absent_entirely_never_guessed() {
         let mut sl = base_sl(1000);
         sl.rate_limits = None;
-        let raw = RawSessionState { pid: None, latest_statusline: Some(sl), latest_hook_event: None };
+        let raw = RawSessionState { pid: None, latest_statusline: Some(sl), latest_hook_event: None, type_mismatches: Vec::new() };
         let snap = derive_snapshot("s1", Some(&raw), 1000, &alive);
         assert_eq!(snap.usage_percent.availability, "unknown");
         assert_eq!(snap.reset_timer.availability, "unknown");
@@ -435,7 +603,7 @@ pub(crate) mod tests {
     fn rate_limits_present_but_five_hour_missing_real_idle_shape() {
         let mut sl = base_sl(1000);
         sl.rate_limits = Some(RawRateLimits { five_hour: None });
-        let raw = RawSessionState { pid: None, latest_statusline: Some(sl), latest_hook_event: None };
+        let raw = RawSessionState { pid: None, latest_statusline: Some(sl), latest_hook_event: None, type_mismatches: Vec::new() };
         let snap = derive_snapshot("s1", Some(&raw), 1000, &alive);
         assert_eq!(snap.usage_percent.availability, "unknown");
         assert_eq!(snap.reset_timer.availability, "unknown");
@@ -447,7 +615,7 @@ pub(crate) mod tests {
     fn effort_absent_not_defaulted() {
         let mut sl = base_sl(1000);
         sl.effort = None;
-        let raw = RawSessionState { pid: None, latest_statusline: Some(sl), latest_hook_event: None };
+        let raw = RawSessionState { pid: None, latest_statusline: Some(sl), latest_hook_event: None, type_mismatches: Vec::new() };
         let snap = derive_snapshot("s1", Some(&raw), 1000, &alive);
         assert_eq!(snap.effort.availability, "unknown");
     }
@@ -457,8 +625,7 @@ pub(crate) mod tests {
         let raw = RawSessionState {
             pid: None,
             latest_statusline: Some(base_sl(1000)),
-            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }),
-        };
+            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }), type_mismatches: Vec::new() };
         let snap = derive_snapshot("s1", Some(&raw), 1000, &alive);
         assert_eq!(snap.duration_line.availability, "unknown");
         assert!(snap.duration_line.source.contains("center-seat PTY"));
@@ -469,8 +636,7 @@ pub(crate) mod tests {
         let raw = RawSessionState {
             pid: None,
             latest_statusline: None,
-            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }),
-        };
+            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }), type_mismatches: Vec::new() };
         let snap = derive_snapshot("s1", Some(&raw), 1005, &alive);
         assert_eq!(snap.activity_state.value, Some("running tool: Bash".to_string()));
         assert_eq!(snap.activity_state.availability, "approximable");
@@ -478,7 +644,7 @@ pub(crate) mod tests {
 
     #[test]
     fn activity_stop_idle_even_long_after() {
-        let raw = RawSessionState { pid: None, latest_statusline: None, latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "Stop".into(), tool_name: None, notification_type: None, end_reason: None }) };
+        let raw = RawSessionState { pid: None, latest_statusline: None, latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "Stop".into(), tool_name: None, notification_type: None, end_reason: None }), type_mismatches: Vec::new() };
         let snap = derive_snapshot("s1", Some(&raw), 1000 + 10_000, &alive);
         assert_eq!(snap.activity_state.value, Some("idle".to_string()));
     }
@@ -488,8 +654,7 @@ pub(crate) mod tests {
         let raw = RawSessionState {
             pid: None,
             latest_statusline: None,
-            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }),
-        };
+            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }), type_mismatches: Vec::new() };
         let snap = derive_snapshot("s1", Some(&raw), 1000 + 121, &alive);
         assert_eq!(snap.activity_state.value, Some("stale (last event 121s ago)".to_string()));
         assert_ne!(snap.activity_state.value, Some("idle".to_string()));
@@ -500,15 +665,14 @@ pub(crate) mod tests {
         let raw = RawSessionState {
             pid: None,
             latest_statusline: None,
-            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }),
-        };
+            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }), type_mismatches: Vec::new() };
         let snap = derive_snapshot("s1", Some(&raw), 1000 + 60, &alive);
         assert_eq!(snap.activity_state.value, Some("running tool: Bash".to_string()));
     }
 
     #[test]
     fn activity_dead_process_overrides_fresh_stop() {
-        let raw = RawSessionState { pid: Some(99999), latest_statusline: None, latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "Stop".into(), tool_name: None, notification_type: None, end_reason: None }) };
+        let raw = RawSessionState { pid: Some(99999), latest_statusline: None, latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "Stop".into(), tool_name: None, notification_type: None, end_reason: None }), type_mismatches: Vec::new() };
         let snap = derive_snapshot("s1", Some(&raw), 1001, &|_pid| false);
         assert_eq!(snap.activity_state.value, Some("ended (process not running)".to_string()));
         assert_eq!(snap.activity_state.availability, "exposed");
@@ -519,15 +683,14 @@ pub(crate) mod tests {
         let raw = RawSessionState {
             pid: None,
             latest_statusline: None,
-            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "Notification".into(), tool_name: None, notification_type: Some("agent_needs_input".into()), end_reason: None }),
-        };
+            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "Notification".into(), tool_name: None, notification_type: Some("agent_needs_input".into()), end_reason: None }), type_mismatches: Vec::new() };
         let snap = derive_snapshot("s1", Some(&raw), 1000 + 10_000, &alive);
         assert_eq!(snap.activity_state.value, Some("waiting for input".to_string()));
     }
 
     #[test]
     fn last_active_time_picks_freshest_never_mtime() {
-        let raw = RawSessionState { pid: None, latest_statusline: Some(base_sl(500)), latest_hook_event: Some(RawHookEvent { observed_at: 900, hook_event_name: "Stop".into(), tool_name: None, notification_type: None, end_reason: None }) };
+        let raw = RawSessionState { pid: None, latest_statusline: Some(base_sl(500)), latest_hook_event: Some(RawHookEvent { observed_at: 900, hook_event_name: "Stop".into(), tool_name: None, notification_type: None, end_reason: None }), type_mismatches: Vec::new() };
         let snap = derive_snapshot("s1", Some(&raw), 1000, &alive);
         assert_eq!(snap.last_active_time.value, Some(900));
         assert!(snap.last_active_time.source.contains("never from file mtime"));
@@ -580,6 +743,55 @@ pub(crate) mod tests {
 
         std::env::remove_var("ZOFIA_SESSIONS_DIR");
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    // Follow-up to audit F9: one mistyped field blanks that field only, with the real
+    // reason; everything else still derives.
+    #[test]
+    fn one_mistyped_field_leaves_the_rest_of_the_snapshot_intact() {
+        let text = r#"{"pid":4242,"latest_statusline":{"observed_at":1000,
+            "model":{"id":"claude-sonnet-5","display_name":"Sonnet 5"},"effort":{"level":"medium"},
+            "rate_limits":{"five_hour":{"used_percentage":40,"resets_at":"soon"}},
+            "context_window":{"used_percentage":12.5,"total_input_tokens":100.0,"total_output_tokens":7},
+            "cost":{"total_cost_usd":0.5}},
+            "latest_hook_event":{"observed_at":1001,"hook_event_name":"Stop"}}"#;
+        let raw = parse_session_state(text).unwrap();
+        assert_eq!(raw.type_mismatches.len(), 1, "{:?}", raw.type_mismatches);
+        let snap = derive_snapshot("s", Some(&raw), 1010, &alive);
+        assert_eq!(snap.reset_timer.availability, "unknown");
+        assert!(snap.reset_timer.source.contains("mistyped"), "{}", snap.reset_timer.source);
+        assert!(snap.reset_timer.source.contains("resets_at: expected an integer, got \"soon\""));
+        assert_eq!(snap.usage_percent.value, Some(40.0));
+        assert_eq!(snap.model.value.as_ref().map(|m| m.display_name.as_str()), Some("Sonnet 5"));
+        assert_eq!(snap.effort.value.as_deref(), Some("medium"));
+        assert_eq!(snap.token_spend.usd.value, Some(0.5));
+        assert_eq!(snap.last_active_time.value, Some(1001));
+        // 100.0 is the same integer written as a float: accepted, not a mismatch.
+        assert!(snap.token_spend.tokens.value.is_some());
+    }
+
+    #[test]
+    fn a_mistyped_parent_or_required_key_sets_aside_only_its_own_subtree() {
+        let text = r#"{"pid":"abc","latest_statusline":{"observed_at":"later","model":{"display_name":"X"}},
+            "latest_hook_event":{"observed_at":1001,"hook_event_name":"PreToolUse","tool_name":"Bash"}}"#;
+        let raw = parse_session_state(text).unwrap();
+        assert!(raw.latest_statusline.is_none());
+        assert!(raw.pid.is_none());
+        let snap = derive_snapshot("s", Some(&raw), 1010, &alive);
+        assert_eq!(snap.model.availability, "unknown");
+        assert!(snap.model.source.contains("set aside"), "{}", snap.model.source);
+        assert!(snap.activity_state.value.is_some(), "the hook event still derives");
+        assert_eq!(snap.last_active_time.value, Some(1001));
+
+        let rl = parse_session_state(r#"{"latest_statusline":{"observed_at":1,"rate_limits":[1]}}"#).unwrap();
+        let snap = derive_snapshot("s", Some(&rl), 5, &alive);
+        assert!(snap.usage_percent.source.contains("rate_limits: expected an object"), "{}", snap.usage_percent.source);
+    }
+
+    #[test]
+    fn a_file_that_is_not_a_json_object_is_still_an_error() {
+        assert!(parse_session_state("[1,2]").unwrap_err().contains("not a JSON object"));
+        assert!(parse_session_state("{").unwrap_err().contains("not valid JSON"));
     }
 
     #[test]
