@@ -128,6 +128,10 @@ export function crossCheck(cfg) {
   if (!seen.has(`m:${cfg.default_model.value}`)) {
     errs.push(`default_model "${cfg.default_model.value}" is not a declared model id`);
   }
+  const dm = cfg.providers.flatMap((p) => p.models).find((m) => m.id === cfg.default_model.value);
+  if (dm && Array.isArray(dm.effort_levels) && !dm.effort_levels.some((e) => e.level === cfg.default_effort.value)) {
+    errs.push(`default_effort "${cfg.default_effort.value}" is not a measured effort level of default model "${dm.id}"`);
+  }
   for (const [name, target] of Object.entries(cfg.aliases)) {
     if (seen.has(`m:${name}`)) errs.push(`alias "${name}" shadows a model id`);
     if (!seen.has(`m:${target}`)) errs.push(`alias "${name}" points at undeclared model "${target}"`);
@@ -161,11 +165,12 @@ export function render(cfg) {
   const aliases = Object.entries(cfg.aliases);
 
   const ts = `// ${HEADER}
-// A null effortLevels / effortKey means UNKNOWN: a placeholder pending owner decision 2 (TODO.md).
+// A null effortLevels / effortKey means UNKNOWN: not yet measured (docs/field-availability.md).
 
 export const PROVIDER_IDS = ${JSON.stringify(providers.map((p) => p.id))} as const;
 export const MODEL_IDS = ${JSON.stringify(models.map((m) => m.id))} as const;
 export const DEFAULT_MODEL = ${JSON.stringify(cfg.default_model.value)};
+export const DEFAULT_EFFORT = ${JSON.stringify(cfg.default_effort.value)};
 export const ALIASES: Readonly<Record<string, string>> = ${JSON.stringify(Object.fromEntries(aliases))};
 
 export interface ProviderEntry { id: string; label: string; launchKind: string; effortKey: string | null }
@@ -177,11 +182,12 @@ export const MODELS: readonly ModelEntry[] = ${JSON.stringify(models, null, 2)};
 
   const opt = (v) => (v === null ? 'None' : `Some(${rsStr(v)})`);
   const rs = `// ${HEADER}
-// A None effort entry means UNKNOWN: a placeholder pending owner decision 2 (TODO.md).
+// A None effort entry means UNKNOWN: not yet measured (docs/field-availability.md).
 
 pub const PROVIDER_IDS: &[&str] = &[${providers.map((p) => rsStr(p.id)).join(', ')}];
 pub const MODEL_IDS: &[&str] = &[${models.map((m) => rsStr(m.id)).join(', ')}];
 pub const DEFAULT_MODEL: &str = ${rsStr(cfg.default_model.value)};
+pub const DEFAULT_EFFORT: &str = ${rsStr(cfg.default_effort.value)};
 pub const ALIASES: &[(&str, &str)] = &[${aliases.map(([a, t]) => `(${rsStr(a)}, ${rsStr(t)})`).join(', ')}];
 /// (provider id, effort launch key)
 pub const EFFORT_KEYS: &[(&str, Option<&str>)] = &[${providers.map((p) => `(${rsStr(p.id)}, ${opt(p.effortKey)})`).join(', ')}];

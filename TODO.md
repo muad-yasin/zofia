@@ -34,14 +34,10 @@ needs root).
 1. **Read Anthropic's current consumer ToS himself** — gates real-subscription
    center-seat testing (item 8) only. Doesn't block item 4, which closes fully against a
    mock.
-2. **Decide real effort-tier values** — genuinely actionable now, for the first time:
-   item 1's probe is done and `docs/field-availability.md` has real measured values.
-   Item 7's config (`config/providers.json`) ships every effort value, and the CLI
-   effort launch key, as `UNKNOWN` placeholders until this is decided.
-3. **Measure his actual screen** — replaces §4's placeholder breakpoint/pane-floor pixel
+2. **Measure his actual screen** — replaces §4's placeholder breakpoint/pane-floor pixel
    values with real ones. Not urgent; the shell already works and is tested against the
    placeholders.
-4. **Confirm whether Windows packaging is ever reopened** — not blocking anything
+3. **Confirm whether Windows packaging is ever reopened** — not blocking anything
    currently building.
 
 ## Real gaps carried from `DECISIONS.md`, not yet resolved

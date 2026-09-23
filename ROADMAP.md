@@ -32,8 +32,8 @@ closed items 7 and 9 and its share of the item 1-3 audit fixes (#2-#9 in
    on item 5 closing. Deferred 2026-09-23 (owner can't install it tonight). No
    workaround: no custom tracer, no downloaded binaries.
 7. ✅ **Provider/effort config** (§5) — `50ced01` (schema, generator, stale lint) and
-   `cc09e9a` (runtime guard). Effort values are `UNKNOWN` placeholders until owner
-   decision 7 below.
+   `cc09e9a` (runtime guard). Default effort = Medium (owner decision 7); the
+   measured levels and launch key are still `UNKNOWN`.
 8. Blocked — **Real-subscription center-seat testing**, blocked on owner decision 1
    below (his own ToS read).
 9. ✅ **Scope-ledger lint** (added 2026-09-22 by C&C) — `69e561c`. Warns on three
@@ -73,8 +73,9 @@ session must never do"; `PLAN.md` §9.2).
    each time a §8 falsification trigger actually fires.
 6. Not done — **Confirm whether Windows packaging is ever reopened.** Not blocking
    anything currently building.
-7. Not done, now ripe — **Decide real effort-tier values.** Wasn't answerable until
-   item 1's probe reported real numbers; it now has.
+7. ✅ (default only) — **Decide real effort-tier values.** 2026-09-23, relayed by C&C:
+   default = Medium (`config/providers.json`, `DECISIONS.md`). The per-model levels and
+   the CLI effort key are still unmeasured, so the default isn't applied at launch yet.
 
 Full detail lives elsewhere on purpose, not duplicated here: `PLAN.md` (the plan and its
 reasoning), `HANDOFF.md` (build order and acceptance tests), `PROGRESS.md` (done vs.

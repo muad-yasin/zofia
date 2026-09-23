@@ -23,3 +23,10 @@ across the owner's projects. One dated entry per item; never rewritten once arch
   real packaged window: `live-gaps.mjs` shows a file written before the assignment
   arriving through register_session's own emit, so `sessionId` reaches Rust's
   `session_id` (`e08caa7`).
+
+## Closed 2026-09-23 (Zofia builder, for C&C thcmcp-31)
+
+- **Owner decision 2, effort default.** Muad, relayed by C&C (thcmcp-31): *"I'd go with
+  Medium as the default"*. `config/providers.json` `default_effort: medium`, with detail in
+  `DECISIONS.md`. The per-model levels and the CLI effort key stay `UNKNOWN` until
+  measured, so no launch applies it yet.

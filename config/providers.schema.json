@@ -1,7 +1,7 @@
 {
   "$comment": "PLAN.md §5. The only authority for providers, models and effort. scripts/gen-providers.mjs validates config/providers.json against this file and fails the build on any violation. Only the keywords that script implements may appear here; it rejects any other keyword rather than ignoring it.",
   "type": "object",
-  "required": ["version", "default_model", "providers", "aliases"],
+  "required": ["version", "default_model", "default_effort", "providers", "aliases"],
   "additionalProperties": false,
   "properties": {
     "$comment": { "type": "string" },
@@ -12,6 +12,16 @@
       "additionalProperties": false,
       "properties": {
         "value": { "$ref": "#/$defs/modelId" },
+        "source": { "$ref": "#/$defs/source" }
+      }
+    },
+    "default_effort": {
+      "$comment": "Owner decision 2: the center seat's default effort level. An owner choice, not a measured value, so its source is a decision, not the matrix. If the default model's effort_levels are measured, it must be one of them (crossCheck).",
+      "type": "object",
+      "required": ["value", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
         "source": { "$ref": "#/$defs/source" }
       }
     },
@@ -49,7 +59,7 @@
                 "label": { "type": "string" },
                 "source": { "$ref": "#/$defs/source" },
                 "effort_levels": {
-                  "$comment": "UNKNOWN until owner decision 2 (TODO.md) picks values from item 1's measured matrix.",
+                  "$comment": "UNKNOWN until a level is measured in item 1's matrix (docs/field-availability.md).",
                   "anyOf": [
                     { "const": "UNKNOWN" },
                     {

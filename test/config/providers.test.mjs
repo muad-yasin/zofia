@@ -70,10 +70,10 @@ test('an effort level needs a measured-matrix tag; a level sourced UNKNOWN never
   }
   const ok = run(setLevels([
     { level: 'high', source: 'docs/field-availability.md#row-2' },
-    { level: 'low', source: 'docs/field-availability.md#row-2' },
+    { level: 'medium', source: 'docs/field-availability.md#row-2' },
   ]));
   assert.equal(ok.code, 0, ok.out);
-  assert.match(readFileSync(join(ok.dir, RS_OUT), 'utf8'), /\("sonnet", Some\(&\["high", "low"\]\)\)/);
+  assert.match(readFileSync(join(ok.dir, RS_OUT), 'utf8'), /\("sonnet", Some\(&\["high", "medium"\]\)\)/);
 });
 
 test('effort_key: UNKNOWN in both halves, or a real value with a measured tag', () => {
@@ -109,6 +109,18 @@ test('every effort value in the real config is UNKNOWN or tagged to the measured
     }
   }
   for (const t of tags.flat()) assert.match(t, /^(UNKNOWN|docs\/field-availability\.md#\S+)$/);
+});
+
+test('default effort is the owner\'s Medium (decision 2), and must be a measured level once levels exist', () => {
+  assert.equal(REAL.default_effort.value, 'medium');
+  assert.equal(run(mutate((c) => delete c.default_effort)).code, 1);
+  const measured = (c) => {
+    c.providers[0].models.find((m) => m.id === c.default_model.value).effort_levels = [
+      { level: 'high', source: 'docs/field-availability.md#effort' },
+    ];
+  };
+  assert.ok(crossCheck(mutate(measured)).some((e) => /default_effort "medium"/.test(e)));
+  assert.equal(run(mutate(measured)).code, 1);
 });
 
 test('cross-entry rules: duplicates, undeclared targets, shadowing aliases', () => {

@@ -526,3 +526,20 @@ sounds fine."* Read as option B from the proposal above:
 `$XDG_RUNTIME_DIR/zofia/assignments.json`, restored across a GUI restart, gone at reboot,
 restored corners marked "restored", with a one-click "clear all". No picker (option A's
 extra wasn't asked for).
+
+## 2026-09-23 — OWNER DECISION 2: center-seat default effort = Medium
+
+**Muad's words, relayed by C&C (thcmcp-31), not typed into this session:** *"I'd go with
+Medium as the default"*. The board (`~/Projects/FOCUS.md`) has the same call: "Zofia
+decision 2: effort default = Medium".
+
+- `config/providers.json` gets `default_effort: medium`, sourced to this entry. The
+  generator emits `DEFAULT_EFFORT` to TS and Rust.
+- It's an owner choice, not a measurement. The schema keeps it apart from the measured
+  values: `effort_levels` and `effort_key` stay `UNKNOWN`, because no effort level or
+  CLI launch key has been measured in `docs/field-availability.md` yet.
+- So no launch path applies Medium yet. Nothing may pass an effort flag to `claude`
+  until `effort_key` has a measured source, and the seat keeps the CLI's own default until
+  then. `crossCheck` requires the default to be one of the default model's measured
+  levels once they exist, so a later measurement can't silently drop it.
+
