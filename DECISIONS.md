@@ -369,3 +369,19 @@ not the implementation.
   `@tauri-apps/api`), and the CSP went from `null` to `'self'` with inline styles
   (xterm.js needs them) and the IPC origins. `main.ts` now shows a wiring failure as a
   visible alert instead of `void`-ing it.
+
+## 2026-09-23 — audit fixes #3, #5, #6, #9 (zofia-26)
+
+- **#3: tick every 15s, not every 120s.** 120s is the stale *threshold*. Ticking at the
+  same interval would let a dead session read "running tool" for up to ~240s. 15s
+  is a placeholder; each tick reads one small tmpfs file per registered session.
+- **#6: absolute clock times, no "Ns ago".** A relative label is only true at render
+  time, and renders now happen every 15s. That's close, but it would still present a
+  derived number as a live measurement.
+- **#5: carry state across the rebuild; no keyed DOM diffing.** It's the smallest
+  change that fixes the bug. `renderCorners` still rebuilds every corner.
+- **#9, still open:** the Rust reader's serde types are strict, so one mistyped field
+  (e.g. `resets_at` as a float) blanks the *whole* snapshot. The Node reader
+  parses the same file and derives the other fields, so the two readers still differ
+  on type mismatches. The error is now at least named correctly. Per-field tolerant
+  parsing is a separate change, not made here.

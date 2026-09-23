@@ -217,3 +217,16 @@ symlink-safe bounded walk, baseline before spawn, process-group kill, env additi
   way: case-sensitive wrapper detection (see `DECISIONS.md`). Reader suite 39/39.
   **Not done:** re-installing on the owner's real settings. That needs his go.
 - **#7a (`50ced01`):** `npm test` runs the e2e files by glob.
+
+## 2026-09-23 — audit fixes #3, #5, #6, #7b, #9 (zofia-26)
+
+- **#5 + #6 + #7b (`9b7117c`):** a snapshot re-render keeps half-typed assign text,
+  the caret and focus. Corner cards now show the reset timer, last-active time and
+  duration line, each with its chip. The e2e suite builds `dist/` before serving it.
+  New e2e tests mock Tauri IPC and fire a real `zofia://snapshot` event; e2e 12/12, and
+  all 3 new/changed tests fail on the old GridShell.
+- **#3 + #9 (`0e2450b`):** registered sessions are re-derived every 15s, so "stale" and
+  dead-PID "ended" appear without a file write. A state file that fails to parse reports
+  the parse error instead of "shim isn't installed". cargo test 54/54. **Not
+  verified:** the ticker's wiring inside `start_watcher` needs a live Tauri app; only the
+  ticker and the re-derive behaviour are tested.

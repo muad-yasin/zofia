@@ -10,8 +10,9 @@ deleted, never rewritten in place.
 ## Where we are — 2026-09-23
 
 Items 1-4 and 9 are done and pushed. Two builders now share the checkout (owner's call,
-2026-09-23): zofia-8b on item 5 (first AppImage, plus audit #1 capabilities), zofia-26 on the
-item 1-3 audit fixes from `Review/Verify_Items1-3_2026-09-23.md`.
+2026-09-23): zofia-8b on item 5 (first AppImage, plus audit #1 capabilities), zofia-26 has
+closed items 7 and 9 and its share of the item 1-3 audit fixes (#2-#9 in
+`Review/Verify_Items1-3_2026-09-23.md`).
 
 ## Year 1 — the concrete build (`PLAN.md` §8/§11, `HANDOFF.md`'s 9 items)
 

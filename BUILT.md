@@ -49,3 +49,7 @@ id(s) it serves (HANDOFF.md's own "files to keep current while building" rule).
   (#4, #8). Reader suite 39/39.
 - 2026-09-23 — Provider/effort config, part 2 (PLAN.md §5, FABLE51-3): `cc09e9a`
   `provider_guard.rs` + its `lib.rs` line. cargo test 49/49.
+- 2026-09-23 — Audit fixes to items 2-3 (PLAN.md §2.1/§4; MUSESPARK12-2, GPT6ASTRA-1,
+  GLM53-1): `9b7117c` shell re-render keeps input/focus, reset/last-active/duration
+  rows, e2e builds first (#5, #6, #7); `0e2450b` watcher 15s re-derive tick and parse
+  errors reported as such (#3, #9). e2e 12/12, cargo test 54/54.

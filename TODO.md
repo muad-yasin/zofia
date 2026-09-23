@@ -17,8 +17,8 @@ describing yesterday is the failure mode this exists to fix. Long narrative belo
 **2026-09-23, two builders.** zofia-8b: item 4 done (`43fc8f9`); next is audit #1 (missing
 `src-tauri/capabilities/`, so `listen` is rejected in a real window), then item 5 (first
 AppImage, whose real launch proves the live path), then item 6. zofia-26:
-items 7 and 9 done; audit #2, #4, #7a, #8 fixed. Next: #5, #3, #6, #9, #7b
-(GridShell/watcher/e2e, coordinated with zofia-8b). **Waiting on the owner:** his
+items 7 and 9 done; every audit fix assigned to it (#2-#9) is pushed. Idle until C&C
+assigns more. **Waiting on the owner:** his
 go to re-run the shim installer so the new `UserPromptSubmit` hook (#4) is live.
 
 ---
