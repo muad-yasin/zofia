@@ -357,3 +357,9 @@ activity passed.
 to its own PID. It needs the real `claude` (item 8). The mock seat wasn't launched during
 the window (see the report).
 
+## 2026-09-23 — AppImage rebuilt at `e5930ce` and re-verified (Zofia builder)
+
+Rebuilt with `--effort medium` in the seat's argv (sha256 `c5e96c2d…`). Clean-image smoke
+passed 9/9 on the FUSE path and 9/9 on extract-and-run. Real-window live tests 12/12.
+`docs/TRY-IT.md` notes the effort flag. The pane shows only the model.
+
