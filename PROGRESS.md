@@ -324,3 +324,11 @@ process outlives the app. Screenshot reviewed by eye.
   even while a child holds the pty. cargo 72/72, e2e 12/12.
 - **Not verified in a real window yet:** all of `ef0c6d3`. zofia-8b's smoke needs a
   rebuild, plus its "CLI default" assertion changed to "sonnet" (told).
+
+## 2026-09-23 — session-assignment persistence, option B (zofia-26)
+
+**Done (`a9b6a29`):** corner assignments are saved to
+`$XDG_RUNTIME_DIR/zofia/assignments.json` and restored at launch, marked "restored",
+with a "Clear all corners" button that also unregisters the sessions. cargo 76/76, e2e
+13/13 (mocked Tauri IPC). **Not yet verified in a real window:** that's next, in
+`test/appimage/live-gaps.mjs`.

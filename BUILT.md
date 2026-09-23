@@ -66,3 +66,5 @@ id(s) it serves (HANDOFF.md's own "files to keep current while building" rule).
   41/41.
 - 2026-09-23 — Roll-up fixes (PLAN.md §2.3/§3/§5; DEEPSEEKV4PRO-2, GPT6ASTRA-2,
   FABLE51-3): `d5ac0d2`, `c7c305b`, `ef0c6d3`.
+- 2026-09-23 — Session-assignment persistence, owner's option B (PLAN.md §2.1/§4;
+  GPT6ASTRA-1, MUSESPARK12-2): `a9b6a29`.
