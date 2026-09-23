@@ -63,17 +63,33 @@ pub struct ForeignSettingsInfo {
     pub settings_json: Option<String>,
     pub settings_local_json: Option<String>,
     pub mcp_json: Option<String>,
+    /// SHA-256 over the three files' exact bytes (or their absence). The owner's
+    /// confirmation carries this back, so a file that changes between the dialog and the
+    /// spawn invalidates it (item 4 audit backlog: the confirmation was a bare boolean).
+    pub digest: String,
 }
 
 /// The file's contents for the confirmation dialog if anything exists at `path`, `None`
 /// only if nothing does. Presence decides, never readability (audit 2026-09-23 #3): a
 /// file with one invalid UTF-8 byte, or one we can't read, is still a file Claude Code may
 /// load, so it's shown (lossily, or as a note) rather than treated as absent.
-fn foreign_file(path: &Path) -> Option<String> {
-    std::fs::symlink_metadata(path).ok()?;
+fn foreign_file(path: &Path, hasher: &mut sha2::Sha256) -> Option<String> {
+    use sha2::Digest;
+    hasher.update(path.file_name().map(|n| n.as_encoded_bytes()).unwrap_or_default());
+    if std::fs::symlink_metadata(path).is_err() {
+        hasher.update(b"\0absent\0");
+        return None;
+    }
     Some(match std::fs::read(path) {
-        Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
-        Err(e) => format!("(present but unreadable: {e})"),
+        Ok(bytes) => {
+            hasher.update((bytes.len() as u64).to_le_bytes());
+            hasher.update(&bytes);
+            String::from_utf8_lossy(&bytes).into_owned()
+        }
+        Err(e) => {
+            hasher.update(b"\0unreadable\0");
+            format!("(present but unreadable: {e})")
+        }
     })
 }
 
@@ -82,11 +98,12 @@ fn foreign_file(path: &Path) -> Option<String> {
 /// not silently inherited ... shows the owner that file's permission/MCP entries and
 /// requires confirmation before launch." Returns `None` if none exists.
 pub fn detect_foreign_settings(workdir: &Path) -> Option<ForeignSettingsInfo> {
-    let info = ForeignSettingsInfo {
-        settings_json: foreign_file(&workdir.join(".claude").join("settings.json")),
-        settings_local_json: foreign_file(&workdir.join(".claude").join("settings.local.json")),
-        mcp_json: foreign_file(&workdir.join(".mcp.json")),
-    };
+    use sha2::Digest;
+    let mut h = sha2::Sha256::new();
+    let settings_json = foreign_file(&workdir.join(".claude").join("settings.json"), &mut h);
+    let settings_local_json = foreign_file(&workdir.join(".claude").join("settings.local.json"), &mut h);
+    let mcp_json = foreign_file(&workdir.join(".mcp.json"), &mut h);
+    let info = ForeignSettingsInfo { settings_json, settings_local_json, mcp_json, digest: format!("{:x}", h.finalize()) };
     if info.settings_json.is_none() && info.settings_local_json.is_none() && info.mcp_json.is_none() {
         return None;
     }
@@ -158,6 +175,14 @@ impl PtySeat {
     #[cfg_attr(not(test), allow(dead_code))] // tests and item 6's PID-tree audit
     pub fn pid(&self) -> Option<u32> {
         self.pid
+    }
+
+    /// Whether the seat's own process has exited (not merely closed the pty: a child can
+    /// keep the pty open after the leader is gone). Doesn't reap; stop() does.
+    pub fn leader_exited(&self) -> bool {
+        let Some(pid) = self.pid else { return false };
+        std::fs::read_to_string(format!("/proc/{pid}/stat"))
+            .map_or(true, |s| s.rfind(')').and_then(|i| s.get(i + 2..i + 3)) == Some("Z"))
     }
 
     /// Ownership boundary (PLAN.md §3): only `CENTER_SEAT_SESSION_ID` may ever write.

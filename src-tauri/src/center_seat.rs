@@ -86,13 +86,33 @@ pub fn resolve_command(configured: Option<String>) -> Result<String, String> {
 /// PLAN.md §3: a workdir carrying its own `.claude/settings.json` or `.mcp.json` doesn't
 /// launch until the owner has seen those entries and confirmed. Enforced here in Rust, so a
 /// frontend that skips the dialog still can't launch.
-pub fn launch_gate(workdir: &Path, confirmed_foreign: bool) -> Result<(), String> {
+/// The confirmation is the digest the dialog showed; it must still match the files right
+/// now, so an edit after the owner looked (or a confirmation replayed for other contents)
+/// doesn't launch.
+pub fn launch_gate(workdir: &Path, confirmed_digest: Option<&str>) -> Result<(), String> {
     match pty_seat::detect_foreign_settings(workdir) {
-        Some(_) if !confirmed_foreign => {
-            Err("this directory has its own Claude Code settings; confirm them before launch".to_string())
-        }
-        _ => Ok(()),
+        None => Ok(()),
+        Some(info) if confirmed_digest == Some(info.digest.as_str()) => Ok(()),
+        Some(_) if confirmed_digest.is_some() => Err(
+            "this directory's Claude Code settings changed after you confirmed them; review them again".to_string(),
+        ),
+        Some(_) => Err("this directory has its own Claude Code settings; confirm them before launch".to_string()),
     }
+}
+
+/// What actually gets exec'd. Until item 8 that's never the file on disk: an absolute
+/// /bin/bash runs the compiled-in mock bytes, so neither a PATH-planted `bash` (the mock's
+/// `#!/usr/bin/env bash`) nor a swap of the file between the gate and the spawn can
+/// change what runs (roll-up 2026-09-23, Items7-9 #3). argv[0] of the script is the
+/// verified path, so `pgrep -f <mock path>` still finds it.
+pub fn launch_plan(resolved: &str, seat_args: &[String]) -> (String, Vec<String>) {
+    if REAL_CLI_ALLOWED {
+        return (resolved.to_string(), seat_args.to_vec());
+    }
+    let script = String::from_utf8_lossy(MOCK_CLAUDE).into_owned();
+    let mut argv = vec!["-c".to_string(), script, resolved.to_string()];
+    argv.extend_from_slice(seat_args);
+    ("/bin/bash".to_string(), argv)
 }
 
 #[tauri::command]
@@ -105,42 +125,66 @@ pub fn center_spawn(
     app: AppHandle,
     seat: State<'_, CenterSeat>,
     workdir: String,
-    confirmed_foreign: bool,
+    confirmed_digest: Option<String>,
     model: Option<String>,
 ) -> Result<String, String> {
     let dir = Path::new(&workdir);
     if !dir.is_dir() {
         return Err(format!("not a directory: {workdir}"));
     }
-    launch_gate(dir, confirmed_foreign)?;
+    launch_gate(dir, confirmed_digest.as_deref())?;
     let command = resolve_command(std::env::var(CENTER_COMMAND_ENV).ok())?;
     // PLAN.md §5: an xAI/Grok id is refused here at runtime, whatever the config said.
     // The web opt-in has no UI yet, so it's off (PLAN.md §3's default).
     let args = seat_argv(model.as_deref(), false)?;
-    let shown_model = model_args(model.as_deref())?.get(1).cloned().unwrap_or_else(|| "CLI default".to_string());
+    let shown_model = model_args(model.as_deref())?[1].clone();
+    let (program, argv) = launch_plan(&command, &args);
 
     let mut slot = seat.0.lock().map_err(|e| e.to_string())?;
     if slot.is_some() {
         return Err("the center seat is already running".to_string());
     }
-    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    let (pty, reader) = pty_seat::spawn(&command, &arg_refs, dir)?;
+    let arg_refs: Vec<&str> = argv.iter().map(String::as_str).collect();
+    let (pty, reader) = pty_seat::spawn(&program, &arg_refs, dir)?;
     let pid = pty.pid();
     *slot = Some(pty);
-    forward_output(app, reader, pid);
+    forward_output(app.clone(), reader, pid);
+    watch_leader(app, pid);
     // Returned so the pane shows the model the seat was actually launched with.
     Ok(shown_model)
 }
 
-/// `--model <resolved id>` for a selected model, nothing for none (the CLI's own default).
+/// `--model <resolved id>`, always. No selection means config/providers.json's default
+/// (owner decision 4: `sonnet`), never the CLI's own default, which is whatever the
+/// owner's settings.json says (`opus[1m]` on his machine; roll-up 2026-09-23). Either way
+/// the id goes through the xAI/Grok guard.
 fn model_args(model: Option<&str>) -> Result<Vec<String>, String> {
-    match model.map(str::trim).filter(|m| !m.is_empty()) {
-        None => Ok(Vec::new()),
-        Some(m) => {
-            let id = crate::provider_guard::check_model(m).map_err(|e| e.to_string())?;
-            Ok(vec!["--model".to_string(), id])
+    let chosen = model.map(str::trim).filter(|m| !m.is_empty()).unwrap_or(crate::provider_guard::default_model());
+    let id = crate::provider_guard::check_model(chosen).map_err(|e| e.to_string())?;
+    Ok(vec!["--model".to_string(), id])
+}
+
+/// The reader's EOF only comes once *every* holder of the pty is gone; a child that keeps
+/// it open would leave an exited seat as a zombie with its slot taken (roll-up LOW). This
+/// watches the leader itself.
+fn watch_leader(app: AppHandle, pid: Option<u32>) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let seat = app.state::<CenterSeat>();
+        let exited = match seat.0.lock() {
+            Ok(slot) => match slot.as_ref() {
+                Some(p) if p.pid() == pid => p.leader_exited(),
+                _ => return, // stopped, reaped, or replaced: nothing left to watch
+            },
+            Err(_) => return,
+        };
+        if exited {
+            if reap_if_current(&seat, pid) {
+                let _ = app.emit("zofia://center-exit", ());
+            }
+            return;
         }
-    }
+    });
 }
 
 /// When the seat ends on its own (/exit, a crash), reaps it and frees the slot so it can
@@ -175,8 +219,9 @@ fn forward_output(app: AppHandle, mut reader: Box<dyn Read + Send>, pid: Option<
                 }
             }
         }
-        reap_if_current(&app.state::<CenterSeat>(), pid);
-        let _ = app.emit("zofia://center-exit", ());
+        if reap_if_current(&app.state::<CenterSeat>(), pid) {
+            let _ = app.emit("zofia://center-exit", ());
+        }
     });
 }
 
@@ -307,6 +352,7 @@ mod tests {
         let argv = seat_argv(Some("sonnet"), false).unwrap();
         assert_eq!(argv, ["--restricted", "--tools", "Read,Grep,Glob", "--strict-mcp-config", "--model", "sonnet"]);
         assert!(seat_argv(None, true).unwrap().contains(&"Read,Grep,Glob,WebSearch,WebFetch".to_string()));
+        assert!(seat_argv(None, false).unwrap().ends_with(&["--model".to_string(), "sonnet".to_string()]));
         assert!(seat_argv(Some("grok-4"), false).is_err());
 
         let refs: Vec<&str> = argv.iter().map(String::as_str).collect();
@@ -321,6 +367,54 @@ mod tests {
         let got: Vec<&str> = seen.lines().filter_map(|l| l.trim_end().strip_prefix("ARG:")).collect();
         assert_eq!(got, refs);
         pty.stop(CENTER_SEAT_SESSION_ID).unwrap();
+    }
+
+    /// Roll-up 2026-09-23 (Items7-9 #3): what runs is an absolute /bin/bash with the
+    /// compiled-in mock bytes, never a PATH lookup and never the file on disk, and it
+    /// still behaves as the mock, with the seat's argv intact.
+    #[test]
+    fn the_launch_plan_runs_the_embedded_mock_under_an_absolute_bash() {
+        let resolved = resolve_command(Some(mock_path())).unwrap();
+        let args = seat_argv(None, false).unwrap();
+        let (program, argv) = launch_plan(&resolved, &args);
+        assert_eq!(program, "/bin/bash");
+        assert_eq!(argv[0], "-c");
+        assert_eq!(argv[1].as_bytes(), MOCK_CLAUDE);
+        assert_eq!(argv[2], resolved, "argv[0] of the script is the verified path, for pgrep");
+
+        let refs: Vec<&str> = argv.iter().map(String::as_str).collect();
+        let (pty, mut reader) = pty_seat::spawn(&program, &refs, Path::new("/tmp")).unwrap();
+        let mut seen = String::new();
+        let mut buf = [0u8; 4096];
+        while !seen.contains("MOCK-CLAUDE-READY") {
+            let n = reader.read(&mut buf).unwrap();
+            assert!(n > 0, "mock closed early: {seen}");
+            seen.push_str(&String::from_utf8_lossy(&buf[..n]));
+        }
+        let got: Vec<&str> = seen.lines().filter_map(|l| l.trim_end().strip_prefix("ARG:")).collect();
+        assert_eq!(got, args.iter().map(String::as_str).collect::<Vec<_>>());
+        pty.stop(CENTER_SEAT_SESSION_ID).unwrap();
+    }
+
+    /// Roll-up LOW: the leader exits while a child still holds the pty, so no EOF comes.
+    /// leader_exited() must still see it, which is what watch_leader polls.
+    #[test]
+    fn an_exited_leader_is_seen_even_while_a_child_holds_the_pty() {
+        let (pty, _reader) = pty_seat::spawn(
+            "/bin/bash",
+            &["-c", "( trap '' HUP; exec sleep 300 ) & echo started; exit 0"],
+            Path::new("/tmp"),
+        )
+        .unwrap();
+        let pid = pty.pid();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+        while !pty.leader_exited() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        assert!(pty.leader_exited(), "leader exit not seen");
+        let seat = CenterSeat(Mutex::new(Some(pty)));
+        assert!(reap_if_current(&seat, pid));
+        assert!(seat.0.lock().unwrap().is_none());
     }
 
     /// Audit 2026-09-23 #2 (the zombie): a seat that exits by itself is reaped and its slot
@@ -346,15 +440,21 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("zofia-gate-{}", std::process::id()));
         std::fs::create_dir_all(dir.join(".claude")).unwrap();
         std::fs::write(dir.join(".claude/settings.json"), r#"{"permissions":{"allow":["Bash(*)"]}}"#).unwrap();
-        assert!(launch_gate(&dir, false).is_err());
-        assert!(launch_gate(&dir, true).is_ok());
+        assert!(launch_gate(&dir, None).is_err());
+        let digest = pty_seat::detect_foreign_settings(&dir).unwrap().digest;
+        assert!(launch_gate(&dir, Some(&digest)).is_ok());
+        // Confirmed, then edited before the spawn: the old confirmation no longer counts.
+        std::fs::write(dir.join(".claude/settings.json"), r#"{"permissions":{"allow":["Bash(*)","Write"]}}"#).unwrap();
+        assert!(launch_gate(&dir, Some(&digest)).unwrap_err().contains("changed after you confirmed"));
+        assert!(launch_gate(&dir, Some("not-a-digest")).is_err());
         std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
     fn model_args_resolve_through_the_guard_and_refuse_grok() {
-        assert!(model_args(None).unwrap().is_empty());
-        assert!(model_args(Some("  ")).unwrap().is_empty());
+        // Owner decision 4: no selection launches config's default, never the CLI's own.
+        assert_eq!(model_args(None).unwrap(), ["--model", "sonnet"]);
+        assert_eq!(model_args(Some("  ")).unwrap(), ["--model", "sonnet"]);
         let args = model_args(Some("sonnet")).unwrap();
         assert_eq!(args[0], "--model");
         assert!(model_args(Some("grok-4")).is_err());
@@ -365,7 +465,7 @@ mod tests {
     fn a_clean_dir_launches_without_a_confirmation() {
         let dir = std::env::temp_dir().join(format!("zofia-gate-clean-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        assert!(launch_gate(&dir, false).is_ok());
+        assert!(launch_gate(&dir, None).is_ok());
         std::fs::remove_dir_all(&dir).ok();
     }
 

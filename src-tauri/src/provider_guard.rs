@@ -78,6 +78,12 @@ pub fn check_model_with(input: &str, aliases: &[(&str, &str)]) -> Result<String,
     Ok(resolved.to_string())
 }
 
+/// config/providers.json's default model (owner decision 4: `sonnet`), for a launch
+/// that didn't pick one.
+pub fn default_model() -> &'static str {
+    generated::DEFAULT_MODEL
+}
+
 /// `check_model_with` against the aliases generated from config/providers.json.
 pub fn check_model(input: &str) -> Result<String, ModelRejection> {
     check_model_with(input, generated::ALIASES)

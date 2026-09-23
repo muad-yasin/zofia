@@ -18,6 +18,8 @@ interface ForeignSettingsInfo {
   settings_json: string | null;
   settings_local_json: string | null;
   mcp_json: string | null;
+  /** Rust's hash of exactly what the dialog shows; the launch must carry it back. */
+  digest: string;
 }
 
 export async function mountCenterSeat(body: HTMLElement): Promise<void> {
@@ -95,10 +97,13 @@ export async function mountCenterSeat(body: HTMLElement): Promise<void> {
     }
   }, RESWEEP_MS);
 
-  const spawn = async (workdir: string, confirmedForeign: boolean) => {
+  // confirmedDigest: null when preflight found no foreign settings, else the digest of the
+  // files the owner just saw. Rust refuses if they changed since.
+  const spawn = async (workdir: string, confirmedDigest: string | null) => {
     try {
-      // No model picker yet (item 7's config feeds one later): null means the CLI default.
-      const model = await invoke<string>("center_spawn", { workdir, confirmedForeign, model: null });
+      // No model picker yet: null means config/providers.json's default (owner decision 4,
+      // sonnet), applied in Rust. The pane shows the id Rust actually launched with.
+      const model = await invoke<string>("center_spawn", { workdir, confirmedDigest, model: null });
       running = true;
       launcher.hidden = true;
       modelLine.textContent = `Model: ${model}`;
@@ -116,10 +121,10 @@ export async function mountCenterSeat(body: HTMLElement): Promise<void> {
     const workdir = dirInput.value.trim();
     const foreign = await invoke<ForeignSettingsInfo | null>("center_preflight", { workdir });
     if (!foreign) {
-      await spawn(workdir, false);
+      await spawn(workdir, null);
       return;
     }
-    showForeignSettingsDialog(body, foreign, () => void spawn(workdir, true));
+    showForeignSettingsDialog(body, foreign, () => void spawn(workdir, foreign.digest));
   });
 }
 
