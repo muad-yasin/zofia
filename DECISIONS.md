@@ -340,3 +340,21 @@ not the implementation.
   deterministic `~truncated` marker. Files over 1 MiB are fingerprinted by size and mtime.
   The baseline is taken before spawn, so a write at startup counts as a change.
 - **xterm.js 6** with `@xterm/addon-fit` 0.11 (the pair released together).
+
+## 2026-09-23 — audit fixes #2, #4, #8 (zofia-26)
+
+- **Real bug, found while fixing #8:** `computeInstallPatch` recognised its own
+  statusLine wrapper by a case-sensitive `"zofia"` match. The owner's checkout is
+  `~/Projects/Zofia`, so any re-install there wrapped the wrapper a second time. Fixed
+  (case-insensitive, anchored on `/statusline-wrapper.sh`). His live settings are wrapped
+  once today, so it never fired for real.
+- **Live-state finding, not changed:** the owner's `~/.claude/zofia/install-record.json`
+  (2026-09-22) lists `injected_hooks: []`, even though the 6 hook entries are in his
+  settings. Most likely the hooks were already present when that install ran. An
+  uninstall today would therefore restore his statusLine but leave the 6 hooks behind.
+  A re-install with today's code adds `UserPromptSubmit`, but still can't claim the
+  existing 6. Fixing his record or settings by hand needs his go; nothing under
+  `~/.claude` was written.
+- **#2: the merge is top-level `+`, not a per-key rule.** Each shim writer owns exactly
+  one top-level key, so replacing whole keys is correct, and it also stops stale
+  `cost.*`/`context_window.*` sub-fields, not just `five_hour`.

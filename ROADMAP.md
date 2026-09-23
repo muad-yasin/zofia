@@ -10,7 +10,7 @@ deleted, never rewritten in place.
 ## Where we are — 2026-09-23
 
 Items 1-4 and 9 are done and pushed. Two builders now share the checkout (owner's call,
-2026-09-23): zofia-8b on item 5 (first AppImage, plus audit #1 capabilities), zofia-26 on item 7 (part 2 pending) and then the
+2026-09-23): zofia-8b on item 5 (first AppImage, plus audit #1 capabilities), zofia-26 on the
 item 1-3 audit fixes from `Review/Verify_Items1-3_2026-09-23.md`.
 
 ## Year 1 — the concrete build (`PLAN.md` §8/§11, `HANDOFF.md`'s 9 items)
@@ -26,9 +26,9 @@ item 1-3 audit fixes from `Review/Verify_Items1-3_2026-09-23.md`.
 5. Not started — **First AppImage build** (§6), independent, buildable any time after
    item 2.
 6. Not started — **Zero-egress audit** (§2.3), needs the full assembled shell.
-7. ⏳ **Provider/effort config** (§5) — part 1 (schema, generator, stale lint) done,
-   `50ced01`; part 2 (runtime guard in the crate) lands after item 4's commit. Effort
-   values are `UNKNOWN` placeholders until owner decision 7 below.
+7. ✅ **Provider/effort config** (§5) — `50ced01` (schema, generator, stale lint) and
+   `cc09e9a` (runtime guard). Effort values are `UNKNOWN` placeholders until owner
+   decision 7 below.
 8. Blocked — **Real-subscription center-seat testing**, blocked on owner decision 1
    below (his own ToS read).
 9. ✅ **Scope-ledger lint** (added 2026-09-22 by C&C) — `69e561c`. Warns on three

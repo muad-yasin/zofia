@@ -202,3 +202,18 @@ symlink-safe bounded walk, baseline before spawn, process-group kill, env additi
   Tauri, where the placeholder stays. Item 5's real launch covers it, together with the
   missing capabilities file (audit #1).
 - The whole-app version of the scrollback grep (only the module level ran).
+
+## 2026-09-23 — item 7 closed; audit fixes #2, #4, #7a, #8 (zofia-26)
+
+- **Item 7 part 2 (`cc09e9a`):** `provider_guard.rs` is in the crate; cargo test 49/49
+  (5 its own). Nothing calls it yet: zofia-8b wires it into `center_spawn`'s `--model`
+  path, which today launches only the mock and passes no model.
+- **#2 (`3e4f44d`):** the shim now replaces `latest_*` keys instead of deep-merging.
+  Regression test through both shim scripts and the reader CLI; it fails on the old
+  code. The owner's live install runs these repo scripts, so this is already live for
+  him. Each stale state file corrects itself on its session's next statusline write.
+- **#4 + #8 (`d3868de`):** `UserPromptSubmit` added to the installed hooks; a re-install
+  keeps the first record's original statusLine, backup and hook list. Found along the
+  way: case-sensitive wrapper detection (see `DECISIONS.md`). Reader suite 39/39.
+  **Not done:** re-installing on the owner's real settings. That needs his go.
+- **#7a (`50ced01`):** `npm test` runs the e2e files by glob.
