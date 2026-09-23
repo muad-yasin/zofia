@@ -55,7 +55,8 @@ Zofia only reads these files. It never types into, restarts, or stops a corner s
 
 Type a directory (e.g. `/tmp`) and click Launch. If the directory has its own
 `.claude/settings*.json` or `.mcp.json`, you're shown those files first and have to
-confirm. The mock prints `MOCK-CLAUDE-READY`, then echoes each line you type as
+confirm. The pane shows `Model: sonnet` (owner decision 4; the mock ignores it). The mock
+prints the arguments it was given, then `MOCK-CLAUDE-READY`, then echoes each line you type as
 `HEARD:<line>`. Ctrl+C prints `SIGINT-RECEIVED` and the mock keeps running. Typing `EXIT`
 ends it, and Launch comes back. None of the terminal text is written to disk.
 
