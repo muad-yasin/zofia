@@ -33,18 +33,23 @@ impl std::fmt::Display for ModelRejection {
     }
 }
 
-/// Same rule as the schema's `notForbidden`, written independently: any "grok", or an
-/// "xai"/"x-ai" segment at the start of the id or after a '/' or ':'.
+/// Same rule as the schema's `notForbidden`, written independently: any "grok"; an
+/// "xai", "x-ai", "x_ai" or "x.ai" segment at the start of the id or after a '/' or ':';
+/// and OpenRouter's auto-router, which may pick a Grok model itself. The owner's rule is
+/// "No grok, ever", routers included (2026-09-23).
 pub fn is_forbidden(id: &str) -> bool {
     let l = id.to_ascii_lowercase();
     if l.contains("grok") {
+        return true;
+    }
+    if l.split(':').next().is_some_and(|base| base == "openrouter/auto" || base.ends_with("/openrouter/auto")) {
         return true;
     }
     let b = l.as_bytes();
     (0..b.len()).any(|i| {
         let at_boundary = i == 0 || b[i - 1] == b'/' || b[i - 1] == b':';
         at_boundary
-            && ["xai", "x-ai"].iter().any(|p| {
+            && ["xai", "x-ai", "x_ai", "x.ai"].iter().any(|p| {
                 b[i..].starts_with(p.as_bytes())
                     && matches!(b.get(i + p.len()), None | Some(b'/' | b':' | b'_' | b'.' | b'-'))
             })
@@ -96,6 +101,9 @@ mod tests {
         for id in [
             "grok-5", "GROK", "x-ai/grok-4.1-fast", "openrouter/x-ai/some-model", "xai",
             "XAI:model", "xai-large", " grok ", "provider:x-ai",
+            // Routers and other spellings: "No grok, ever", routers included.
+            "openrouter/auto", "OpenRouter/Auto:floor", "x_ai/some-model", "x.ai/some-model",
+            "openrouter/x_ai/m",
         ] {
             assert!(
                 matches!(check_model(id), Err(ModelRejection::Forbidden { .. })),
@@ -121,7 +129,7 @@ mod tests {
     #[test]
     fn near_misses_are_allowed() {
         // "xai" only counts as a whole leading segment; these are not xAI models.
-        for id in ["claude-sonnet-5", "maxai-model", "taxai", "anthropic/claude-opus-5-5"] {
+        for id in ["claude-sonnet-5", "maxai-model", "taxai", "anthropic/claude-opus-5-5", "openrouter/autopilot-x", "x.aim/model"] {
             assert!(check_model(id).is_ok(), "{id} should pass");
         }
         assert_eq!(check_model("   "), Err(ModelRejection::Empty));
