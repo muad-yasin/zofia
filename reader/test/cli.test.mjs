@@ -106,3 +106,22 @@ test("CLI: unregistered session_id (file absent) still returns all nine keys, al
     }
   });
 });
+
+// Audit F10, 2026-09-23.
+import { isValidSessionId, readSessionState, sessionsDir } from "../src/sessionState.mjs";
+test("the Node reader refuses path-like session ids and uses a per-user fallback dir", async () => {
+  for (const bad of ["../etc/passwd", "a/b", "..", "", "x y"]) {
+    assert.equal(isValidSessionId(bad), false, bad);
+    await assert.rejects(readSessionState(bad), /not a valid session_id/);
+  }
+  assert.equal(isValidSessionId("d55b834d-d581-4891-9429-5afbe96e9f96"), true);
+  const saved = { z: process.env.ZOFIA_SESSIONS_DIR, x: process.env.XDG_RUNTIME_DIR };
+  delete process.env.ZOFIA_SESSIONS_DIR;
+  delete process.env.XDG_RUNTIME_DIR;
+  try {
+    assert.equal(sessionsDir(), `/tmp/zofia-${process.getuid()}/sessions`);
+  } finally {
+    if (saved.z !== undefined) process.env.ZOFIA_SESSIONS_DIR = saved.z;
+    if (saved.x !== undefined) process.env.XDG_RUNTIME_DIR = saved.x;
+  }
+});

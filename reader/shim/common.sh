@@ -2,9 +2,32 @@
 # Shared helpers for Zofia's statusline/hook shim scripts (PLAN.md §2.1 transport).
 # Sourced, never executed directly.
 
+# Without XDG_RUNTIME_DIR the fallback is per-user (/tmp/zofia-<uid>), never a shared
+# /tmp/zofia another local user could pre-create (audit F10, 2026-09-23). Must match
+# reader/src/sessionState.mjs and src-tauri/src/session_reader.rs exactly.
 zofia_sessions_dir() {
-  local runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
-  echo "${ZOFIA_SESSIONS_DIR:-$runtime_dir/zofia/sessions}"
+  if [ -n "${ZOFIA_SESSIONS_DIR:-}" ]; then
+    echo "$ZOFIA_SESSIONS_DIR"
+  elif [ -n "${XDG_RUNTIME_DIR:-}" ]; then
+    echo "$XDG_RUNTIME_DIR/zofia/sessions"
+  else
+    echo "/tmp/zofia-$(id -u)/sessions"
+  fi
+}
+
+# A session_id becomes a file name, so only a plain token is accepted: no "/", no "..".
+# Claude Code's ids are UUIDs.
+zofia_valid_session_id() {
+  [[ "$1" =~ ^[A-Za-z0-9_-]{1,128}$ ]]
+}
+
+# The directory must be ours and 0700 after the chmod, and nobody else may be able to
+# swap it out: its parent is ours, or sticky like /tmp itself (only an entry's owner can
+# rename it there). A directory someone else created or controls is never written into.
+zofia_dir_is_private() {
+  local dir="$1" parent
+  parent="$(dirname "$dir")"
+  [ -O "$dir" ] && { [ -O "$parent" ] || [ -k "$parent" ]; } && [ "$(stat -c %a "$dir" 2>/dev/null)" = "700" ]
 }
 
 # Merges the JSON object $2 into session $1's state file, under an flock so a
@@ -19,10 +42,11 @@ zofia_sessions_dir() {
 # Claude Code drops it, and presented it as fresh (audit F2, 2026-09-23; PLAN.md §2.2).
 zofia_merge_state() {
   local session_id="$1" patch="$2"
-  [ -n "$session_id" ] || return 0
+  zofia_valid_session_id "$session_id" || return 0
   local dir; dir="$(zofia_sessions_dir)"
   mkdir -p "$dir" 2>/dev/null
   chmod 0700 "$dir" 2>/dev/null
+  zofia_dir_is_private "$dir" || return 0
   local file="$dir/$session_id.json"
   local lock="$dir/.$session_id.lock"
   (

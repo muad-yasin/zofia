@@ -146,3 +146,24 @@ test("a statusline without five_hour replaces the old one; the reader reports it
     assert.equal(snap.resetTimer.availability, "unknown");
   });
 });
+
+// Audit F10, 2026-09-23: a session_id is a file name, and the fallback dir is per-user.
+test("a session_id with a path in it is never written, and the fallback dir is per-user", async () => {
+  await withSessionsDir(async (dir) => {
+    const env = { ZOFIA_SESSIONS_DIR: path.join(dir, "sessions") };
+    await runScript("hook-writer.sh", JSON.stringify({ session_id: "../escaped", hook_event_name: "Stop" }), env);
+    await assert.rejects(stat(path.join(dir, "escaped.json")), "nothing written outside the sessions dir");
+    await assert.rejects(stat(path.join(dir, "sessions", "../escaped.json")));
+    await runScript("hook-writer.sh", JSON.stringify({ session_id: "ok-id_1", hook_event_name: "Stop" }), env);
+    const perms = await stat(path.join(dir, "sessions"));
+    assert.equal((perms.mode & 0o777).toString(8), "700");
+    await stat(path.join(dir, "sessions", "ok-id_1.json"));
+  });
+  const probe = spawn("bash", ["-c", `source ${path.join(SHIM_DIR, "common.sh")}; zofia_sessions_dir`], {
+    env: { PATH: process.env.PATH, HOME: process.env.HOME },
+  });
+  let out = "";
+  probe.stdout.on("data", (d) => (out += d));
+  await new Promise((r) => probe.on("close", r));
+  assert.equal(out.trim(), `/tmp/zofia-${process.getuid()}/sessions`);
+});

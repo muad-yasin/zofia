@@ -56,6 +56,10 @@ fn emit_snapshot(app: &AppHandle, session_id: &str) {
 
 #[tauri::command]
 pub fn register_session(app: AppHandle, session_id: String) -> Result<(), String> {
+    // The owner types this; it becomes a file name, so "../x" is refused (audit F10).
+    if !crate::session_reader::is_valid_session_id(&session_id) {
+        return Err(format!("\"{session_id}\" is not a valid session_id (letters, digits, '-' and '_' only)"));
+    }
     let state = app.state::<RegisteredSessions>();
     state.0.lock().map_err(|e| e.to_string())?.insert(session_id.clone());
     emit_snapshot(&app, &session_id); // don't leave the pane on "no snapshot yet" until the next fs event

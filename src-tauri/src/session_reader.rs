@@ -28,8 +28,23 @@ pub fn sessions_dir() -> PathBuf {
     if let Ok(dir) = std::env::var("ZOFIA_SESSIONS_DIR") {
         return PathBuf::from(dir);
     }
-    let runtime_dir = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string());
-    PathBuf::from(runtime_dir).join("zofia").join("sessions")
+    // Per-user fallback, never a shared /tmp/zofia (audit F10, 2026-09-23). Must match
+    // reader/shim/common.sh and reader/src/sessionState.mjs.
+    match std::env::var("XDG_RUNTIME_DIR") {
+        Ok(dir) if !dir.is_empty() => PathBuf::from(dir).join("zofia").join("sessions"),
+        _ => PathBuf::from(format!("/tmp/zofia-{}", current_uid())).join("sessions"),
+    }
+}
+
+fn current_uid() -> u32 {
+    // SAFETY: getuid(2) takes no arguments and cannot fail.
+    unsafe { libc::getuid() }
+}
+
+/// A session_id becomes a file name: plain tokens only, so "../x" can't leave the
+/// sessions dir (audit F10). Claude Code's ids are UUIDs.
+pub fn is_valid_session_id(id: &str) -> bool {
+    (1..=128).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
 }
 
 pub fn session_state_path(session_id: &str) -> PathBuf {
@@ -41,6 +56,17 @@ pub fn session_state_path(session_id: &str) -> PathBuf {
 /// `Err` only for a file that isn't a JSON object at all; a mistyped field is nulled
 /// and recorded instead (see `type_check`), so it blanks that field alone.
 pub fn read_session_state(session_id: &str) -> Result<Option<RawSessionState>, String> {
+    if !is_valid_session_id(session_id) {
+        return Err(format!("\"{session_id}\" is not a valid session_id (letters, digits, '-' and '_' only)"));
+    }
+    // A sessions dir someone else owns could hold planted state.
+    let dir = sessions_dir();
+    if let Ok(meta) = std::fs::metadata(&dir) {
+        use std::os::unix::fs::MetadataExt;
+        if meta.uid() != current_uid() {
+            return Err(format!("sessions directory {} is owned by uid {}, not you; refusing to read it", dir.display(), meta.uid()));
+        }
+    }
     let path = session_state_path(session_id);
     match std::fs::read_to_string(&path) {
         Ok(text) => parse_session_state(&text)
@@ -792,6 +818,29 @@ pub(crate) mod tests {
     fn a_file_that_is_not_a_json_object_is_still_an_error() {
         assert!(parse_session_state("[1,2]").unwrap_err().contains("not a JSON object"));
         assert!(parse_session_state("{").unwrap_err().contains("not valid JSON"));
+    }
+
+    #[test]
+    fn session_ids_that_could_leave_the_sessions_dir_are_refused() {
+        for bad in ["../etc/passwd", "a/b", "..", "", "x y", "sess\u{0}", &"a".repeat(129)] {
+            assert!(!is_valid_session_id(bad), "{bad:?}");
+            assert!(read_session_state(bad).is_err(), "{bad:?}");
+        }
+        assert!(is_valid_session_id("d55b834d-d581-4891-9429-5afbe96e9f96"));
+        assert!(is_valid_session_id("sess_1"));
+    }
+
+    #[test]
+    fn without_xdg_runtime_dir_the_fallback_is_per_user() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let saved = std::env::var("XDG_RUNTIME_DIR").ok();
+        std::env::remove_var("ZOFIA_SESSIONS_DIR");
+        std::env::remove_var("XDG_RUNTIME_DIR");
+        let dir = sessions_dir();
+        if let Some(v) = saved {
+            std::env::set_var("XDG_RUNTIME_DIR", v);
+        }
+        assert_eq!(dir, PathBuf::from(format!("/tmp/zofia-{}/sessions", current_uid())));
     }
 
     #[test]
