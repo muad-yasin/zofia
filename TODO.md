@@ -19,9 +19,7 @@ describing yesterday is the failure mode this exists to fix. Long narrative belo
 AppImage, whose real launch proves the live path), then item 6. zofia-26:
 items 7 and 9 done; audit #2, #4, #7a, #8 fixed. Next: #5, #3, #6, #9, #7b
 (GridShell/watcher/e2e, coordinated with zofia-8b). **Waiting on the owner:** his
-go to re-run the shim installer so the new `UserPromptSubmit` hook (#4) is live. His
-current install record lists 0 injected hooks, so an uninstall today would leave the
-6 hooks in place (see `DECISIONS.md`).
+go to re-run the shim installer so the new `UserPromptSubmit` hook (#4) is live.
 
 ---
 

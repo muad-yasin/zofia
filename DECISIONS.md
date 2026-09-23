@@ -348,12 +348,10 @@ not the implementation.
   `~/Projects/Zofia`, so any re-install there wrapped the wrapper a second time. Fixed
   (case-insensitive, anchored on `/statusline-wrapper.sh`). His live settings are wrapped
   once today, so it never fired for real.
-- **Live-state finding, not changed:** the owner's `~/.claude/zofia/install-record.json`
-  (2026-09-22) lists `injected_hooks: []`, even though the 6 hook entries are in his
-  settings. Most likely the hooks were already present when that install ran. An
-  uninstall today would therefore restore his statusLine but leave the 6 hooks behind.
-  A re-install with today's code adds `UserPromptSubmit`, but still can't claim the
-  existing 6. Fixing his record or settings by hand needs his go; nothing under
+- **Correction (same day):** an earlier version of this entry said the owner's live
+  `install-record.json` lists 0 injected hooks. That was a misread: a jq filter of mine
+  piped `.original_statusline` into the hook count. The record has all 6 hooks, matching
+  his settings, so his uninstall works as designed. thcmcp-31 caught it. Nothing under
   `~/.claude` was written.
 - **#2: the merge is top-level `+`, not a per-key rule.** Each shim writer owns exactly
   one top-level key, so replacing whole keys is correct, and it also stops stale
