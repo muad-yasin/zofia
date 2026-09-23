@@ -11,7 +11,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { computeInstallPatch } from "../src/settingsPatch.mjs";
+import { computeInstallPatch, mergeInstallRecords } from "../src/settingsPatch.mjs";
 
 const READER_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const DEFAULT_SHIM_DIR = path.join(READER_DIR, "shim");
@@ -80,15 +80,16 @@ async function main() {
   await mkdir(path.dirname(args.settingsPath), { recursive: true });
   await atomicWrite(args.settingsPath, nextText);
 
+  const recordPath = path.join(args.zofiaDir, "install-record.json");
   const installRecord = {
     installed_at: new Date().toISOString(),
     settings_path: args.settingsPath,
     shim_dir: args.shimDir,
-    backup_path: backupPath,
+    // mergeInstallRecords keeps a previous install's backup_path (the true pre-Zofia file).
+    ...mergeInstallRecords(await readJsonIfExists(recordPath), { backup_path: backupPath, ...record }),
     settings_sha256_after: sha256(nextText),
-    ...record,
   };
-  await atomicWrite(path.join(args.zofiaDir, "install-record.json"), JSON.stringify(installRecord, null, 2) + "\n");
+  await atomicWrite(recordPath, JSON.stringify(installRecord, null, 2) + "\n");
 
   process.stdout.write(`\nInstalled. Backup of the previous file: ${backupPath}\n`);
   process.stdout.write(`Install record: ${path.join(args.zofiaDir, "install-record.json")}\n`);

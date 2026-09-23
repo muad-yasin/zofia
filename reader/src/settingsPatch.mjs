@@ -2,7 +2,9 @@
 // (PLAN.md §2.1). Kept separate from install.mjs/uninstall.mjs's filesystem/CLI code
 // so the merge and unmerge logic itself is unit-testable without touching real paths.
 
-export const HOOK_EVENTS = ["Stop", "PreToolUse", "PostToolUse", "Notification", "SessionStart", "SessionEnd"];
+// UserPromptSubmit added 2026-09-23 (audit F4): without it a session that is thinking or
+// writing a text-only reply, with no tool call, still reads "idle" from its last Stop.
+export const HOOK_EVENTS = ["Stop", "PreToolUse", "PostToolUse", "Notification", "SessionStart", "SessionEnd", "UserPromptSubmit"];
 
 export function hookWriterCommand(shimDir) {
   return `bash ${shimDir}/hook-writer.sh`;
@@ -12,6 +14,13 @@ export function statuslineWrapperCommand(shimDir, originalCommand) {
   const wrapper = `bash ${shimDir}/statusline-wrapper.sh`;
   if (!originalCommand) return wrapper;
   return `ZOFIA_ORIGINAL_STATUSLINE_CMD=${shellQuote(originalCommand)} ${wrapper}`;
+}
+
+// Case-insensitive: the owner's checkout is ~/Projects/Zofia, and a case-sensitive
+// "zofia" match missed it, so a re-install wrapped Zofia's own wrapper a second time
+// (found 2026-09-23 while fixing audit F8).
+function isZofiaWrapper(command) {
+  return command.toLowerCase().includes("zofia") && /\/statusline-wrapper\.sh$/.test(command);
 }
 
 function shellQuote(str) {
@@ -31,7 +40,7 @@ export function computeInstallPatch(settings, { shimDir }) {
 
   const originalStatusLine = settings?.statusLine ?? null;
   const alreadyOurs =
-    originalStatusLine?.type === "command" && typeof originalStatusLine.command === "string" && originalStatusLine.command.includes("zofia") && originalStatusLine.command.includes("statusline-wrapper.sh");
+    originalStatusLine?.type === "command" && typeof originalStatusLine.command === "string" && isZofiaWrapper(originalStatusLine.command);
 
   let originalCommand = null;
   if (originalStatusLine && !alreadyOurs) {
@@ -76,6 +85,29 @@ export function computeInstallPatch(settings, { shimDir }) {
       original_statusline: originalStatusLine && !alreadyOurs ? originalStatusLine : alreadyOurs ? "already-ours-skip" : null,
       injected_hooks: injectedHooks,
     },
+  };
+}
+
+/**
+ * Folds a new install's record into the one a previous install left behind (audit F8,
+ * 2026-09-23). A re-install sees Zofia's own wrapper and hooks, so on its own it would
+ * record "already-ours-skip" and only the newly added hooks, and overwriting the old
+ * record with that loses the owner's original statusLine and makes uninstall a no-op.
+ * Keeps the first install's original statusLine and pre-install backup, and the union
+ * of every injected hook.
+ */
+export function mergeInstallRecords(prior, record) {
+  if (!prior) return record;
+  const keepOriginal = record.original_statusline === "already-ours-skip" && prior.original_statusline !== undefined;
+  const hooks = [...(prior.injected_hooks ?? [])];
+  for (const h of record.injected_hooks ?? []) {
+    if (!hooks.some((p) => p.event === h.event && p.command === h.command)) hooks.push(h);
+  }
+  return {
+    ...record,
+    original_statusline: keepOriginal ? prior.original_statusline : record.original_statusline,
+    injected_hooks: hooks,
+    ...(prior.backup_path ? { backup_path: prior.backup_path } : {}),
   };
 }
 

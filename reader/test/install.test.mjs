@@ -109,3 +109,24 @@ test("install.mjs is idempotent: running twice with --apply --yes doesn't duplic
     assert.equal(merged.hooks.Stop.length, 1);
   });
 });
+
+// Audit F8, 2026-09-23: a second install overwrote the record with "already-ours-skip" and
+// no hooks, so uninstall silently left everything in place and the original was lost.
+test("install twice, then uninstall, restores the exact original file", async () => {
+  await withTmp(async (dir) => {
+    const settingsPath = path.join(dir, "settings.json");
+    const zofiaDir = path.join(dir, "zofia");
+    const original = JSON.stringify({ statusLine: { type: "command", command: "echo mine" }, hooks: { Stop: [{ hooks: [{ type: "command", command: "echo other" }] }] } }, null, 2) + "\n";
+    await writeFile(settingsPath, original);
+    const args = ["--settings-path", settingsPath, "--zofia-dir", zofiaDir, "--shim-dir", SHIM_DIR, "--apply", "--yes"];
+    await exec("node", [INSTALL, ...args]);
+    const firstRecord = JSON.parse(await readFile(path.join(zofiaDir, "install-record.json"), "utf8"));
+    await exec("node", [INSTALL, ...args]);
+    const record = JSON.parse(await readFile(path.join(zofiaDir, "install-record.json"), "utf8"));
+    assert.deepEqual(record.original_statusline, { type: "command", command: "echo mine" });
+    assert.equal(record.backup_path, firstRecord.backup_path);
+
+    await exec("node", [UNINSTALL, "--settings-path", settingsPath, "--zofia-dir", zofiaDir, "--apply", "--yes"]);
+    assert.deepEqual(JSON.parse(await readFile(settingsPath, "utf8")), JSON.parse(original));
+  });
+});

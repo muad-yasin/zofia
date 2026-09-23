@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeInstallPatch, computeUninstallPatch, HOOK_EVENTS } from "../src/settingsPatch.mjs";
+import { computeInstallPatch, computeUninstallPatch, mergeInstallRecords, hookWriterCommand, statuslineWrapperCommand, HOOK_EVENTS } from "../src/settingsPatch.mjs";
 
 const SHIM_DIR = "/opt/zofia/shim";
 
@@ -71,4 +71,31 @@ test("uninstalling a fresh install (nothing existed before) removes statusLine a
   assert.deepEqual(restored, original);
   assert.ok(!("statusLine" in restored));
   assert.ok(!("hooks" in restored));
+});
+
+// Audit F4 + F8, 2026-09-23: upgrading an install made before UserPromptSubmit was added.
+test("re-installing over an older hook set adds only the new hook and keeps the first record's original", async () => {
+  const shimDir = "/opt/zofia/shim";
+  const oldEvents = HOOK_EVENTS.filter((e) => e !== "UserPromptSubmit");
+  const cmd = hookWriterCommand(shimDir);
+  const installed = {
+    statusLine: { type: "command", command: statuslineWrapperCommand(shimDir, "echo mine") },
+    hooks: Object.fromEntries(oldEvents.map((e) => [e, [{ hooks: [{ type: "command", command: cmd }] }]])),
+  };
+  const prior = {
+    original_statusline: { type: "command", command: "echo mine" },
+    injected_hooks: oldEvents.map((event) => ({ event, command: cmd })),
+    backup_path: "/first.bak",
+  };
+  const { nextSettings, record } = computeInstallPatch(installed, { shimDir });
+  assert.deepEqual(record.injected_hooks, [{ event: "UserPromptSubmit", command: cmd }]);
+  assert.equal(nextSettings.hooks.UserPromptSubmit.length, 1);
+
+  const merged = mergeInstallRecords(prior, { backup_path: "/second.bak", ...record });
+  assert.deepEqual(merged.original_statusline, prior.original_statusline);
+  assert.equal(merged.backup_path, "/first.bak");
+  assert.equal(merged.injected_hooks.length, HOOK_EVENTS.length);
+
+  const { nextSettings: restored } = computeUninstallPatch(nextSettings, merged);
+  assert.deepEqual(restored, { statusLine: { type: "command", command: "echo mine" } });
 });
