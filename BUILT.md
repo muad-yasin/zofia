@@ -61,3 +61,6 @@ id(s) it serves (HANDOFF.md's own "files to keep current while building" rule).
 - 2026-09-23 — Item 4 audit fixes (PLAN.md §3; GPT6ASTRA-2, FABLE51-2): `2427f96`
   tool-policy argv, content-based item 8 gate, self-exit reaping, TERM, settings gate,
   sweep bounds/async. cargo test 64/64.
+- 2026-09-23 — Sweep cache, audit F10 remainder, item 4 backlog (PLAN.md §2.1/§3;
+  GPT6ASTRA-2, FABLE51-1/2): `6d2cdb1`, `5f12f31`, `ba5ec88`. cargo 70/70, reader
+  41/41.

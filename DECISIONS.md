@@ -463,3 +463,21 @@ option that writes this metadata to disk. A alone is the most conservative choic
 the owner wants every launch to be a fresh choice.
 
 **Needs the owner:** pick A, B, B+A or C. Nothing is built until he does.
+
+## 2026-09-23 — sweep cache and item 4 backlog (zofia-26)
+
+- **The cache key includes ctime.** (size, mtime, inode) alone would skip a same-size
+  edit whose mtime was reset, and C&C asked for exactly that case to be caught. The
+  kernel moves ctime on every write and on every mtime reset, and setting ctime back
+  takes root or a clock change. That's the residual limit, accepted.
+- **No `PR_SET_PDEATHSIG`.** portable-pty's CommandBuilder has no pre-exec hook, and a
+  `setpriv --pdeathsig` wrapper ties the child's life to the *thread* that forked it,
+  which for a Tauri command isn't guaranteed to be long-lived. That would risk killing a
+  healthy seat. Not fixed. A GUI crash can still leave the seat running until its PTY
+  hangs up.
+- **The setsid fix is partial by nature.** Descendants are found through /proc parent
+  links at stop time. One that was already orphaned (a double-forking daemon) is out of
+  reach. Only a cgroup scope (e.g. `systemd-run --user --scope`) would hold it: a
+  bigger change, left for later.
+- **A full input queue refuses instead of blocking.** A child that stops reading gets
+  new input dropped with an error the frontend can show, instead of freezing the GUI.

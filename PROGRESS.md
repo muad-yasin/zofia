@@ -269,3 +269,21 @@ flags. That's §3's probe, which runs with item 8. The frontend doesn't show
 `settings_local_json` yet; that's zofia-8b's `centerSeat.ts`.
 **Backlog, unchanged:** the audit's blocking PTY write, the `setsid` escape, confirmation
 not tied to content, stop latency, and no `PR_SET_PDEATHSIG`.
+
+## 2026-09-23 — sweep cache, audit backlog, persistence proposal (zofia-26)
+
+- **Sweep cache (`6d2cdb1`):** the 5s resweep re-reads only files whose (dev, ino,
+  size, mtime, ctime) changed. An unchanged tree is re-read 0 times, and a same-size
+  edit with its mtime reset is still caught.
+- **Phase-1 #10 remainder (`5f12f31`):** per-user `/tmp/zofia-<uid>` fallback,
+  private-dir check before any write, and session_id validation in the shim, both
+  readers and `register_session`. The owner's live dir passes, so live capture is
+  unaffected.
+- **Item 4 backlog (`ba5ec88`):** non-blocking ordered input queue; setsid'd
+  descendants killed on stop; async stop off the lock.
+- **Not done, with reasons (`DECISIONS.md`):** `PR_SET_PDEATHSIG`; keystroke order
+  across WebKit `invoke`s (needs the real window); confirmation tied to file content
+  (needs a `centerSeat.ts` change; asked zofia-8b).
+- **Proposal (`01e4452`):** session-assignment persistence, options A/B/C. Waiting on
+  the owner.
+- cargo test 70/70, reader 41/41.
