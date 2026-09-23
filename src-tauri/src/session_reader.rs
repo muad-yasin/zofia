@@ -173,19 +173,7 @@ pub fn derive_snapshot(
     is_pid_alive: &dyn Fn(u32) -> bool,
 ) -> SessionSnapshot {
     let Some(raw) = raw else {
-        let reason = "no state file for this session_id — nothing observed yet, or the shim isn't installed";
-        return SessionSnapshot {
-            session_id: session_id.to_string(),
-            model: unknown_field(reason),
-            effort: unknown_field(reason),
-            usage_percent: unknown_field(reason),
-            reset_timer: unknown_field(reason),
-            context_percent: unknown_field(reason),
-            activity_state: unknown_field(reason),
-            duration_line: unknown_field(reason),
-            token_spend: TokenSpend { usd: unknown_field(reason), tokens: unknown_field(reason) },
-            last_active_time: unknown_field(reason),
-        };
+        return unknown_snapshot(session_id, "no state file for this session_id — nothing observed yet, or the shim isn't installed");
     };
 
     let sl = raw.latest_statusline.as_ref();
@@ -202,6 +190,24 @@ pub fn derive_snapshot(
         duration_line: derive_duration_line(),
         token_spend: TokenSpend { usd: derive_token_spend_usd(sl), tokens: derive_token_spend_tokens(sl) },
         last_active_time: derive_last_active_time(sl, hook),
+    }
+}
+
+/// Every field `unknown`, all carrying the same `reason`. Used when there's no state to
+/// derive from: no file yet, or (audit F9) a file that exists but doesn't parse, in which
+/// case the reason is the parse error itself, never "the shim isn't installed".
+pub fn unknown_snapshot(session_id: &str, reason: &str) -> SessionSnapshot {
+    SessionSnapshot {
+        session_id: session_id.to_string(),
+        model: unknown_field(reason),
+        effort: unknown_field(reason),
+        usage_percent: unknown_field(reason),
+        reset_timer: unknown_field(reason),
+        context_percent: unknown_field(reason),
+        activity_state: unknown_field(reason),
+        duration_line: unknown_field(reason),
+        token_spend: TokenSpend { usd: unknown_field(reason), tokens: unknown_field(reason) },
+        last_active_time: unknown_field(reason),
     }
 }
 
@@ -367,7 +373,7 @@ fn derive_activity_state(hook: Option<&RawHookEvent>, pid: Option<u32>, now: i64
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     fn base_sl(observed_at: i64) -> RawStatusline {
@@ -388,7 +394,7 @@ mod tests {
     // `ZOFIA_SESSIONS_DIR` is process-wide env state; `cargo test` runs tests in
     // parallel threads by default, so any two tests that set/read/remove it race unless
     // serialized. Every test below that touches the env var takes this lock first.
-    static ENV_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    pub(crate) static ENV_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     #[test]
     fn null_raw_state_every_field_unknown_with_source() {
