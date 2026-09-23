@@ -14,7 +14,9 @@ describing yesterday is the failure mode this exists to fix. Long narrative belo
 
 ## PRIORITY NOW
 
-**2026-09-23, two builders.** zofia-8b: item 4 (center seat against a mock). zofia-26:
+**2026-09-23, two builders.** zofia-8b: item 4 done (`43fc8f9`); next is audit #1 (missing
+`src-tauri/capabilities/`, so `listen` is rejected in a real window), then item 5 (first
+AppImage, whose real launch proves the live path), then item 6. zofia-26:
 item 7 part 2 (the runtime guard's `lib.rs` line, after item 4's commit), then the item
 1-3 audit regressions C&C assigned (#2-#9 in `Review/Verify_Items1-3_2026-09-23.md`;
 #2, the shim's deep merge that keeps a stale `five_hour`, first). Item 9 is done.

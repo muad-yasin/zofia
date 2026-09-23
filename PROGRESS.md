@@ -176,3 +176,29 @@ triggered.
 `test/lint/fixtures/plan-broken-ledger.md` and 0 on the real `PLAN.md`; `npm run
 test:lint` 6/6. The real PLAN.md has three ledger-only ids, reported as warnings (see
 `DECISIONS.md`).
+
+## 2026-09-23 — item 4, center seat against a mock (zofia-8b)
+
+**Done (`43fc8f9`):** owned-PTY center seat (`pty_seat.rs`), its Tauri commands
+(`center_seat.rs`), the hash sweep (`hash_sweep.rs`), and an xterm.js pane. `cargo test`
+44/44, e2e 10/10. Against `test/fixtures/mock-claude.sh`, these pass: typed input arrives
+byte for byte, a raw ESC arrives, Ctrl+C arrives as a real SIGINT and the seat survives it,
+input/resize/stop aimed at a corner session_id are rejected in the Rust core, a permissive
+project settings file blocks launch until confirmed (enforced in Rust), app shutdown stops
+the seat and leaves an independent observed process alive, and a scrollback marker is
+absent from Zofia's own config/cache/data dirs.
+
+**Pre-reboot fix check:** the uncommitted `PtySeat::stop` was not correct. It sent SIGHUP
+only, so a child that trapped SIGHUP survived (reproduced by a test). Fixed; see
+`DECISIONS.md`. Folded in four audit findings from `Review/Verify_Items1-3_2026-09-23.md`:
+symlink-safe bounded walk, baseline before spawn, process-group kill, env additions.
+
+**Not verified / deferred:**
+- The real-CLI tool-policy probe under `cnc-settings.json`. It needs the real `claude`, so
+  it waits on item 8. The real CLI is refused in code until then (`REAL_CLI_ALLOWED`).
+- "Displayed C&C model equals the owner's selection" waits on item 7 part 2 (the runtime
+  guard lands in the crate) and on item 8 (no `--model` goes to a mock).
+- The frontend pane has not run in a real Tauri window yet. The e2e suite runs outside
+  Tauri, where the placeholder stays. Item 5's real launch covers it, together with the
+  missing capabilities file (audit #1).
+- The whole-app version of the scrollback grep (only the module level ran).

@@ -307,3 +307,36 @@ not the implementation.
   keep the warning, is for C&C and the owner.
 - **Process note:** C&C's instruction to fix the item 1-3 audit regressions *before*
   item 9 arrived after item 9 was already committed. The regressions are next.
+
+## 2026-09-23 — item 4 (zofia-8b, builder A)
+
+- **Real bug: portable-pty 0.9's cloned `ChildKiller` sends SIGHUP only.** Read in the
+  crate source (`ProcessSignaller::kill`): no escalation. Only `Child::kill` on the child
+  itself escalates to SIGKILL. The pre-reboot `stop()` used the cloned killer, so a child
+  that trapped SIGHUP survived. **Don't go back to the cloned killer.** `stop()` now sends
+  SIGHUP to the process group, waits 5s, then SIGKILLs the group and confirms the exit.
+- **The whole process group is signalled, not only the leader pid.** portable-pty starts
+  the child with setsid, so pid = pgid. A real CLI's tool subprocesses would otherwise
+  outlive the seat. The group gets SIGKILL even after a polite exit, so members that
+  ignored SIGHUP don't survive. Guarded against pgid <= 1.
+- **Transport is Tauri IPC, not a WebSocket.** PLAN.md §3 carries over Sophi-A's
+  "WS token + allowed-origins gate". That gate protects a WS listener, and Zofia opens
+  none: commands in, events out, over the same authenticated channel item 3 uses. No port
+  means nothing to gate, and less for item 6's zero-egress audit to explain.
+  `tokio-tungstenite`/`futures-util`/`getrandom` were dropped from the pre-reboot
+  Cargo.toml. If a WS path is ever added, the gate comes with it.
+- **The center seat's env allowlist adds `XDG_RUNTIME_DIR` and
+  `DBUS_SESSION_BUS_ADDRESS`** (audit finding). Without them, runtime files fall back to
+  shared /tmp and a keyring credential store is unreachable. Both are what the owner's own
+  terminals pass to `claude`, so this widens nothing beyond a normal terminal. `DISPLAY`
+  and `WAYLAND_DISPLAY` stay out.
+- **The real `claude` is refused in code until item 8** (`center_seat::REAL_CLI_ALLOWED`,
+  checked by basename). The seat launches only `ZOFIA_CENTER_COMMAND` (the mock).
+- **The foreign-settings confirmation is enforced in Rust** (`launch_gate`). A frontend
+  that skips the dialog still can't launch.
+- **Hash sweep bounds** (audit finding): symlinks are fingerprinted by target and never
+  followed. A top-level `CLAUDE.md` link also hashes its target file, one hop, because
+  Claude Code reads through it. The walk caps at depth 8 and 2,000 entries, with a
+  deterministic `~truncated` marker. Files over 1 MiB are fingerprinted by size and mtime.
+  The baseline is taken before spawn, so a write at startup counts as a change.
+- **xterm.js 6** with `@xterm/addon-fit` 0.11 (the pair released together).

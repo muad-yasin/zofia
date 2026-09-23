@@ -9,8 +9,8 @@ deleted, never rewritten in place.
 
 ## Where we are — 2026-09-23
 
-Items 1-3 and 9 are done and pushed. Two builders now share the checkout (owner's call,
-2026-09-23): zofia-8b on item 4, zofia-26 on item 7 (part 2 pending) and then the
+Items 1-4 and 9 are done and pushed. Two builders now share the checkout (owner's call,
+2026-09-23): zofia-8b on item 5 (first AppImage, plus audit #1 capabilities), zofia-26 on item 7 (part 2 pending) and then the
 item 1-3 audit fixes from `Review/Verify_Items1-3_2026-09-23.md`.
 
 ## Year 1 — the concrete build (`PLAN.md` §8/§11, `HANDOFF.md`'s 9 items)
@@ -21,7 +21,8 @@ item 1-3 audit fixes from `Review/Verify_Items1-3_2026-09-23.md`.
 2. ✅ **Static shell** (§4) — the five-pane Tauri shell on sample data. Commit `89ad88a`.
 3. ✅ **Wire the reader into the shell** (§2/§4) — real snapshots now reach corner
    panes. Commit `75c34e7`.
-4. ⏳ **Center seat against a mock** (§3) — next up once building resumes.
+4. ✅ **Center seat against a mock** (§3) — `43fc8f9`. The real-CLI tool-policy probe
+   and the model-display check wait on items 8 and 7.
 5. Not started — **First AppImage build** (§6), independent, buildable any time after
    item 2.
 6. Not started — **Zero-egress audit** (§2.3), needs the full assembled shell.
