@@ -1,0 +1,240 @@
+// PLAN.md §3, §1 disposition ledger row 6: "CLAUDE.md/.claude/.mcp.json hash sweep +
+// trust-level tags", adapted from Sophi-A's sensitivePathsSweep
+// (~/Projects/sophi-a/src/orchestrator/index.js) — same threat model, scoped down to
+// the center seat's own workspace only ("it can vouch for nothing inside the owner's
+// foreign corner terminals", PLAN.md §1 row 6's own reason).
+//
+// The threat: a running seat (or an injected instruction inside its own output) writes
+// CLAUDE.md/.claude/.mcp.json into its own workdir. Those files are auto-loaded by
+// Claude Code on every later turn, so a change that isn't the owner's own doing can
+// persist an instruction across the whole session. The center seat's own tool-policy
+// (§3) already denies Write, so this shouldn't be reachable structurally — this sweep
+// is deliberate defense-in-depth on top of that, matching PLAN.md §12's own stated
+// discipline ("defense in depth beats 'moved upstream'"), not a belief the allow-list
+// might fail.
+
+use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
+use std::path::Path;
+
+pub const SENSITIVE_PATHS: [&str; 3] = ["CLAUDE.md", ".claude", ".mcp.json"];
+
+/// A fingerprint of the sensitive paths under one workdir at one point in time.
+/// `None` for a path that doesn't exist — absence is itself part of the fingerprint, so
+/// "a file was created where none existed" is detected the same way as "a file changed".
+pub type Fingerprint = BTreeMap<&'static str, Option<String>>;
+
+/// Walk bounds. A symlink loop, or a workdir of $HOME (whose `.claude` holds every session
+/// transcript), must not hang or abort the GUI. Past a bound the fingerprint records a
+/// `truncated` marker instead of reading more, so it stays deterministic.
+const MAX_DEPTH: usize = 8;
+const MAX_ENTRIES: usize = 2_000;
+const MAX_HASHED_BYTES: u64 = 1 << 20; // larger files are fingerprinted by size + mtime
+
+fn hash_file(path: &Path) -> Option<String> {
+    let meta = std::fs::symlink_metadata(path).ok()?;
+    if meta.len() > MAX_HASHED_BYTES {
+        let mtime = meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok());
+        return Some(format!("large:{}:{:?}", meta.len(), mtime));
+    }
+    let bytes = std::fs::read(path).ok()?;
+    Some(format!("{:x}", Sha256::digest(&bytes)))
+}
+
+fn hash_file_following(path: &Path) -> Option<String> {
+    let meta = std::fs::metadata(path).ok()?;
+    if meta.len() > MAX_HASHED_BYTES {
+        return Some(format!("large:{}", meta.len()));
+    }
+    Some(format!("{:x}", Sha256::digest(&std::fs::read(path).ok()?)))
+}
+
+/// A symlink is fingerprinted by its target string and never followed, so a link loop or
+/// a link out of the workdir can't make the sweep read beyond it.
+fn hash_entry(path: &Path, ft: std::fs::FileType) -> String {
+    if ft.is_symlink() {
+        let target = std::fs::read_link(path).map(|t| t.to_string_lossy().to_string()).unwrap_or_default();
+        format!("symlink:{target}")
+    } else if ft.is_file() {
+        hash_file(path).unwrap_or_else(|| "unreadable".to_string())
+    } else {
+        "dir".to_string()
+    }
+}
+
+/// Mirrors Sophi-A's `hashPath`: a file hashes its own bytes; a directory hashes a
+/// sorted `name:hash` listing of every entry inside it (recursively, bounded), so a rename
+/// or a moved/added/removed file changes the fingerprint even if no single file's own
+/// bytes did.
+fn hash_path(path: &Path) -> Option<String> {
+    let meta = std::fs::symlink_metadata(path).ok()?;
+    if meta.file_type().is_symlink() {
+        // A top-level link (e.g. CLAUDE.md -> a shared file) is what Claude Code reads
+        // through, so its target file's bytes count too. Only a regular-file target is
+        // read, one hop, never a directory walk.
+        let content = std::fs::metadata(path).ok().filter(|m| m.is_file()).and_then(|_| hash_file_following(path));
+        return Some(format!("{}|{}", hash_entry(path, meta.file_type()), content.unwrap_or_default()));
+    }
+    if !meta.is_dir() {
+        return Some(hash_entry(path, meta.file_type()));
+    }
+    let mut entries: Vec<(String, String)> = Vec::new();
+    let mut truncated = false;
+    walk_dir(path, 0, &mut entries, &mut truncated, path);
+    entries.sort();
+    if truncated {
+        entries.push(("~truncated".to_string(), MAX_ENTRIES.to_string()));
+    }
+    Some(entries.into_iter().map(|(name, hash)| format!("{name}:{hash}")).collect::<Vec<_>>().join("|"))
+}
+
+fn walk_dir(dir: &Path, depth: usize, out: &mut Vec<(String, String)>, truncated: &mut bool, root: &Path) {
+    if depth > MAX_DEPTH {
+        *truncated = true;
+        return;
+    }
+    let Ok(read) = std::fs::read_dir(dir) else { return };
+    let mut children: Vec<_> = read.flatten().collect();
+    children.sort_by_key(|e| e.file_name()); // deterministic truncation point
+    for entry in children {
+        if out.len() >= MAX_ENTRIES {
+            *truncated = true;
+            return;
+        }
+        let path = entry.path();
+        let Ok(ft) = entry.file_type() else { continue }; // does not follow symlinks
+        let name = path.strip_prefix(root).unwrap_or(&path).to_string_lossy().to_string();
+        out.push((name, hash_entry(&path, ft)));
+        if ft.is_dir() {
+            walk_dir(&path, depth + 1, out, truncated, root);
+        }
+    }
+}
+
+/// Fingerprints `CLAUDE.md`, `.claude`, `.mcp.json` under `workdir` right now.
+pub fn sweep(workdir: &Path) -> Fingerprint {
+    SENSITIVE_PATHS.iter().map(|&p| (p, hash_path(&workdir.join(p)))).collect()
+}
+
+/// Compares two fingerprints of the same workdir, returning the sensitive paths that
+/// differ (empty if nothing changed). `None` on either side means "first ever sweep" is
+/// the caller's job to distinguish — this function only ever compares two real snapshots.
+pub fn changed_paths(baseline: &Fingerprint, current: &Fingerprint) -> Vec<&'static str> {
+    SENSITIVE_PATHS.iter().filter(|&&p| baseline.get(p) != current.get(p)).copied().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn tmp_workdir(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("zofia-hash-sweep-{tag}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn empty_workdir_every_path_absent() {
+        let dir = tmp_workdir("empty");
+        let fp = sweep(&dir);
+        assert_eq!(fp.len(), 3);
+        assert!(fp.values().all(|v| v.is_none()));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn unchanged_content_same_fingerprint() {
+        let dir = tmp_workdir("unchanged");
+        fs::write(dir.join("CLAUDE.md"), "hello").unwrap();
+        let a = sweep(&dir);
+        let b = sweep(&dir);
+        assert_eq!(changed_paths(&a, &b), Vec::<&str>::new());
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_file_appearing_where_none_existed_is_detected() {
+        let dir = tmp_workdir("appear");
+        let baseline = sweep(&dir); // nothing exists yet
+        fs::write(dir.join(".mcp.json"), "{}").unwrap();
+        let current = sweep(&dir);
+        assert_eq!(changed_paths(&baseline, &current), vec![".mcp.json"]);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_file_edited_in_place_is_detected() {
+        let dir = tmp_workdir("edit");
+        fs::write(dir.join("CLAUDE.md"), "original").unwrap();
+        let baseline = sweep(&dir);
+        fs::write(dir.join("CLAUDE.md"), "injected instruction").unwrap();
+        let current = sweep(&dir);
+        assert_eq!(changed_paths(&baseline, &current), vec!["CLAUDE.md"]);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_directory_entry_renamed_inside_dot_claude_is_detected() {
+        let dir = tmp_workdir("dirrename");
+        fs::create_dir_all(dir.join(".claude")).unwrap();
+        fs::write(dir.join(".claude").join("settings.json"), "{}").unwrap();
+        let baseline = sweep(&dir);
+        fs::rename(dir.join(".claude").join("settings.json"), dir.join(".claude").join("settings-2.json")).unwrap();
+        let current = sweep(&dir);
+        assert_eq!(changed_paths(&baseline, &current), vec![".claude"]);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_symlink_loop_inside_dot_claude_terminates_and_is_fingerprinted() {
+        let dir = tmp_workdir("symloop");
+        fs::create_dir_all(dir.join(".claude")).unwrap();
+        std::os::unix::fs::symlink(dir.join(".claude"), dir.join(".claude").join("loop")).unwrap();
+        let a = sweep(&dir);
+        assert!(a[".claude"].as_deref().unwrap().contains("symlink:"));
+        fs::remove_file(dir.join(".claude").join("loop")).unwrap();
+        std::os::unix::fs::symlink("/elsewhere", dir.join(".claude").join("loop")).unwrap();
+        assert_eq!(changed_paths(&a, &sweep(&dir)), vec![".claude"], "retargeted link must be detected");
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_top_level_claude_md_symlink_tracks_its_target_content() {
+        let dir = tmp_workdir("toplink");
+        let target = dir.join("shared.md");
+        fs::write(&target, "v1").unwrap();
+        std::os::unix::fs::symlink(&target, dir.join("CLAUDE.md")).unwrap();
+        let a = sweep(&dir);
+        fs::write(&target, "v2 injected").unwrap();
+        assert_eq!(changed_paths(&a, &sweep(&dir)), vec!["CLAUDE.md"]);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_huge_dot_claude_is_bounded_not_walked_whole() {
+        let dir = tmp_workdir("huge");
+        fs::create_dir_all(dir.join(".claude")).unwrap();
+        for i in 0..(MAX_ENTRIES + 50) {
+            fs::write(dir.join(".claude").join(format!("t{i:05}")), "x").unwrap();
+        }
+        let fp = sweep(&dir);
+        let v = fp[".claude"].as_deref().unwrap();
+        assert!(v.contains("~truncated"));
+        assert_eq!(fp, sweep(&dir), "bounded fingerprint must stay deterministic");
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn unrelated_files_in_the_workdir_never_affect_the_fingerprint() {
+        let dir = tmp_workdir("unrelated");
+        fs::write(dir.join("README.md"), "not sensitive").unwrap();
+        let baseline = sweep(&dir);
+        fs::write(dir.join("README.md"), "changed but still not sensitive").unwrap();
+        fs::write(dir.join("notes.txt"), "brand new but still not sensitive").unwrap();
+        let current = sweep(&dir);
+        assert_eq!(changed_paths(&baseline, &current), Vec::<&str>::new());
+        fs::remove_dir_all(&dir).ok();
+    }
+}

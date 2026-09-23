@@ -1,0 +1,151 @@
+// HANDOFF.md item 4, PLAN.md §3: the center seat's terminal, rendered with xterm.js and
+// wired to src-tauri/src/center_seat.rs over Tauri's own IPC. Every keystroke goes out
+// tagged with the center seat's session_id; the Rust core rejects any other id, so this
+// file is not the ownership boundary, only a client of it.
+//
+// Scrollback lives in xterm's in-memory buffer only. Nothing here writes it anywhere.
+// Outside a Tauri webview (dev preview, Playwright e2e) the item 2 placeholder stays.
+
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import "@xterm/xterm/css/xterm.css";
+import { isTauriRuntime } from "../reader/liveWiring.js";
+
+const CENTER_SEAT_SESSION_ID = "center-seat"; // mirrors pty_seat::CENTER_SEAT_SESSION_ID
+const RESWEEP_MS = 5000;
+
+interface ForeignSettingsInfo {
+  settings_json: string | null;
+  mcp_json: string | null;
+}
+
+export async function mountCenterSeat(body: HTMLElement): Promise<void> {
+  if (!isTauriRuntime()) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  const { listen } = await import("@tauri-apps/api/event");
+
+  body.textContent = "";
+  body.classList.add("center-live");
+
+  const launcher = document.createElement("form");
+  launcher.className = "center-launcher";
+  const dirLabel = document.createElement("label");
+  dirLabel.textContent = "Working directory ";
+  const dirInput = document.createElement("input");
+  dirInput.type = "text";
+  dirInput.required = true;
+  dirInput.placeholder = "/home/…/project";
+  dirLabel.append(dirInput);
+  const launchBtn = document.createElement("button");
+  launchBtn.type = "submit";
+  launchBtn.textContent = "Launch";
+  launcher.append(dirLabel, launchBtn);
+
+  const notice = document.createElement("p");
+  notice.className = "center-notice";
+  notice.setAttribute("role", "status");
+
+  const termHost = document.createElement("div");
+  termHost.className = "center-term";
+
+  body.append(launcher, notice, termHost);
+
+  const term = new Terminal({ convertEol: false, cursorBlink: true, scrollback: 5000 });
+  const fit = new FitAddon();
+  term.loadAddon(fit);
+  term.open(termHost);
+  fit.fit();
+
+  let running = false;
+  const encoder = new TextEncoder();
+
+  term.onData((data) => {
+    if (!running) return;
+    void invoke("center_write", { sessionId: CENTER_SEAT_SESSION_ID, data: Array.from(encoder.encode(data)) });
+  });
+  term.onResize(({ rows, cols }) => {
+    if (!running) return;
+    void invoke("center_resize", { sessionId: CENTER_SEAT_SESSION_ID, rows, cols });
+  });
+  new ResizeObserver(() => fit.fit()).observe(termHost);
+
+  await listen<number[]>("zofia://center-output", (e) => term.write(new Uint8Array(e.payload)));
+  await listen("zofia://center-exit", () => {
+    running = false;
+    launcher.hidden = false;
+    notice.textContent = "Center seat exited.";
+  });
+
+  setInterval(async () => {
+    if (!running) return;
+    const changed = await invoke<string[]>("center_resweep");
+    if (changed.length > 0) {
+      notice.textContent = `Warning: changed since launch in the seat's directory: ${changed.join(", ")}`;
+      notice.classList.add("center-warning");
+    }
+  }, RESWEEP_MS);
+
+  const spawn = async (workdir: string, confirmedForeign: boolean) => {
+    try {
+      await invoke("center_spawn", { workdir, confirmedForeign });
+      running = true;
+      launcher.hidden = true;
+      notice.textContent = "";
+      notice.classList.remove("center-warning");
+      await invoke("center_resize", { sessionId: CENTER_SEAT_SESSION_ID, rows: term.rows, cols: term.cols });
+      term.focus();
+    } catch (err) {
+      notice.textContent = String(err);
+    }
+  };
+
+  launcher.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const workdir = dirInput.value.trim();
+    const foreign = await invoke<ForeignSettingsInfo | null>("center_preflight", { workdir });
+    if (!foreign) {
+      await spawn(workdir, false);
+      return;
+    }
+    showForeignSettingsDialog(body, foreign, () => void spawn(workdir, true));
+  });
+}
+
+/** PLAN.md §3: show the directory's own settings and wait for an explicit confirm. In-DOM,
+ * never window.confirm. File contents go in as text, never as HTML. */
+function showForeignSettingsDialog(host: HTMLElement, info: ForeignSettingsInfo, onConfirm: () => void): void {
+  const dialog = document.createElement("div");
+  dialog.className = "center-confirm";
+  dialog.setAttribute("role", "alertdialog");
+  dialog.setAttribute("aria-label", "Confirm project settings before launch");
+
+  const intro = document.createElement("p");
+  intro.textContent =
+    "This directory has its own Claude Code settings. They merge with the center seat's policy and can widen it. Review before launching.";
+  dialog.append(intro);
+
+  for (const [name, text] of [
+    [".claude/settings.json", info.settings_json],
+    [".mcp.json", info.mcp_json],
+  ] as const) {
+    if (text === null) continue;
+    const h = document.createElement("h3");
+    h.textContent = name;
+    const pre = document.createElement("pre");
+    pre.textContent = text;
+    dialog.append(h, pre);
+  }
+
+  const confirm = document.createElement("button");
+  confirm.textContent = "Launch with these settings";
+  const cancel = document.createElement("button");
+  cancel.textContent = "Cancel";
+  confirm.addEventListener("click", () => {
+    dialog.remove();
+    onConfirm();
+  });
+  cancel.addEventListener("click", () => dialog.remove());
+  dialog.append(confirm, cancel);
+  host.append(dialog);
+  cancel.focus();
+}

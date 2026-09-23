@@ -373,3 +373,12 @@ body {
   border-color: var(--gold);
   color: var(--gold-bright);
 }
+
+/* Item 4: the live center seat (src/lib/center/centerSeat.ts). */
+.center-live { display: flex; flex-direction: column; gap: 0.5rem; min-height: 0; }
+.center-term { flex: 1; min-height: 12rem; }
+.center-launcher { display: flex; gap: 0.5rem; align-items: center; }
+.center-notice:empty { display: none; }
+.center-warning { font-weight: 600; }
+.center-confirm { border: 1px solid currentColor; padding: 0.75rem; }
+.center-confirm pre { max-height: 12rem; overflow: auto; white-space: pre-wrap; }

@@ -1,6 +1,7 @@
 import { GridShell } from "./lib/layout/GridShell.js";
 import { PaneRegistry } from "./lib/layout/paneRegistry.js";
 import { SAMPLE_SESSIONS } from "./lib/layout/sampleData.js";
+import { mountCenterSeat } from "./lib/center/centerSeat.js";
 import { isTauriRuntime, listenForLiveSnapshots, registerLiveSession } from "./lib/reader/liveWiring.js";
 import type { CornerIndex } from "./lib/layout/types.js";
 
@@ -32,3 +33,5 @@ const onAssignSession = (corner: CornerIndex, sessionId: string) => {
 
 shell = new GridShell(root, registry, onAssignSession);
 void listenForLiveSnapshots(registry, shell);
+const centerBody = root.querySelector<HTMLElement>("#center-pane .center-body");
+if (centerBody) void mountCenterSeat(centerBody);
