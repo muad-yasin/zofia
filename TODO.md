@@ -14,11 +14,11 @@ describing yesterday is the failure mode this exists to fix. Long narrative belo
 
 ## PRIORITY NOW
 
-**2026-09-23, two builders.** zofia-8b: item 4 done (`43fc8f9`); next is audit #1 (missing
-`src-tauri/capabilities/`, so `listen` is rejected in a real window), then item 5 (first
-AppImage, whose real launch proves the live path), then item 6. zofia-26:
+**2026-09-23, two builders.** zofia-8b: items 4 and 5 done (`43fc8f9`, `064659a`), audit
+#1/#10 done (`327b48d`). It waits for C&C's next assignment. zofia-26 (live-window tests
+on zofia-8b's `test/appimage/` harness, the confirm-digest change):
 items 7 and 9 done, audit #2-#9 fixed, Rust reader parses per field (`43c3704`),
-item 6 harness built (`12565ee`). Item 6's real run waits on item 5 and on `strace`. **Waiting on the owner:** his
+item 6 harness built (`12565ee`). Item 6's real run waits only on `strace` now. **Waiting on the owner:** his
 go to re-run the shim installer so the new `UserPromptSubmit` hook (#4) is live. And
 `sudo dnf install strace` (item 6's audit traces syscalls with it; nothing else here
 needs root).
@@ -26,6 +26,10 @@ needs root).
 ---
 
 ## Waiting on the owner — each blocks something specific (`PLAN.md` §10)
+
+0. **A release signing key, kept outside the app and the repo** (PLAN.md §6: "the
+   signature verifies before launch"). This is the one open part of item 5. No key has
+   been generated. It's his key and his choice of tool (e.g. GPG or minisign).
 
 1. **Read Anthropic's current consumer ToS himself** — gates real-subscription
    center-seat testing (item 8) only. Doesn't block item 4, which closes fully against a

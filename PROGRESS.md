@@ -287,3 +287,27 @@ not tied to content, stop latency, and no `PR_SET_PDEATHSIG`.
 - **Proposal (`01e4452`):** session-assignment persistence, options A/B/C. Waiting on
   the owner.
 - cargo test 70/70, reader 41/41.
+
+## 2026-09-23 — audit #1/#10 and item 5, first AppImage (zofia-8b)
+
+**Audit #1/#10 (`327b48d`):** `src-tauri/capabilities/default.json` added
+(`core:event:default` only), wiring failures show as a visible alert, `withGlobalTauri`
+off, a real CSP. `center_spawn` routes `--model` through `provider_guard`. Proven in a
+real window by item 5's smoke: no alert, and live snapshots reach a corner.
+
+**Item 5 (`064659a`):** first AppImage (Fedora 44 x86_64, ~107 MB, `NO_STRIP=true`).
+`npm run test:appimage` runs `test/appimage/smoke.mjs` against the packaged artifact in
+a clean `fedora:44` image under Xvfb with `--network=none`: **9/9 on the FUSE path, 9/9
+via extract-and-run with no FUSE device.** Checked there: the shell renders, no wiring
+alert, a synthetic state file's model reaches corner 1, the mock seat launches, paints
+its output, shows its model, hides the launcher and echoes typed input, and no seat
+process outlives the app. Screenshot reviewed by eye.
+
+**Not verified / not done:**
+- Signature verification before launch: waits on the owner's signing key (see TODO).
+- Typing goes through xterm's input handler by script, not OS-level key events.
+  WebKitWebDriver answers "unsupported operation" to click/send-keys/actions here.
+- The host-desktop run couldn't paint, because the session was locked (no compositor
+  frames). Every render check comes from the Xvfb container.
+- Only Fedora 44 is declared (`packaging/linux-support.md`). No older baseline yet.
+- Release extras (checksums, inventory, notices, pinned linuxdeploy) are not started.

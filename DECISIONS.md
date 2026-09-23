@@ -481,3 +481,25 @@ the owner wants every launch to be a fresh choice.
   bigger change, left for later.
 - **A full input queue refuses instead of blocking.** A child that stops reading gets
   new input dropped with an error the frontend can show, instead of freezing the GUI.
+
+## 2026-09-23 — item 5 (zofia-8b)
+
+- **`NO_STRIP=true` for the AppImage build.** linuxdeploy's bundled `strip` fails on the
+  `.relr.dyn` sections of Fedora 44's libraries. Skipping the strip gives a bigger
+  artifact, not a broken one. `npm run build:appimage` sets it.
+- **The declared baseline is Fedora 44 x86_64 only.** A build on Fedora 44 needs
+  glibc 2.43. PLAN.md §6 forbids claiming more than was tested, so wider support means an
+  older build container plus a clean-image run per distribution.
+- **The smoke drives the DOM by script.** WebKitWebDriver (webkitgtk6.0 2.52.5) refuses
+  element click/send-keys and the Actions API with "unsupported operation", on Wayland
+  and XWayland alike. Terminal text enters through xterm's own `input` handler, so it
+  covers onData -> IPC -> Rust -> PTY, but not OS-level keyboard delivery. Stated in
+  `test/appimage/webdriver.mjs`.
+- **Render checks run only under Xvfb.** On the host, the owner's desktop was locked
+  (`LockedHint=yes`): no frames, so `requestAnimationFrame` never fires and xterm never
+  paints, even though the bytes arrive (the pane's byte counter showed 19). It's
+  environmental, but it would look like a Zofia bug, hence this note.
+- **The AppImage embeds the mock's bytes** (zofia-26's content gate, `2427f96`), so any
+  mock edit needs a rebuild before a container run.
+- **A byte counter on the terminal host** (`data-bytes-in`): a count only, never content.
+  It tells "no events" apart from "not painted".

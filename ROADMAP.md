@@ -9,8 +9,8 @@ deleted, never rewritten in place.
 
 ## Where we are — 2026-09-23
 
-Items 1-4 and 9 are done and pushed. Two builders now share the checkout (owner's call,
-2026-09-23): zofia-8b on item 5 (first AppImage, plus audit #1 capabilities), zofia-26 has
+Items 1-5 and 9 are done and pushed (item 5's signature step waits on the owner's key).
+Two builders share the checkout (owner's call, 2026-09-23). zofia-8b closed item 5; zofia-26 has
 closed items 7 and 9 and its share of the item 1-3 audit fixes (#2-#9 in
 `Review/Verify_Items1-3_2026-09-23.md`).
 
@@ -24,8 +24,9 @@ closed items 7 and 9 and its share of the item 1-3 audit fixes (#2-#9 in
    panes. Commit `75c34e7`.
 4. ✅ **Center seat against a mock** (§3) — `43fc8f9`. The real-CLI tool-policy probe
    and the model-display check wait on items 8 and 7.
-5. Not started — **First AppImage build** (§6), independent, buildable any time after
-   item 2.
+5. ✅ **First AppImage build** (§6) — `064659a`. The clean-image smoke passes 9/9 on
+   both FUSE and extract-and-run. Declared: Fedora 44 x86_64 only
+   (`packaging/linux-support.md`). Signature verification waits on the owner's key.
 6. ⏳ **Zero-egress audit** (§2.3) — harness and tests built by zofia-26 (`12565ee`). The
    acceptance run against the AppImage waits on `strace` being installed (owner) and
    on item 5 closing. Deferred 2026-09-23 (owner can't install it tonight). No
