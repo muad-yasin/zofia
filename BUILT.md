@@ -64,3 +64,5 @@ id(s) it serves (HANDOFF.md's own "files to keep current while building" rule).
 - 2026-09-23 — Sweep cache, audit F10 remainder, item 4 backlog (PLAN.md §2.1/§3;
   GPT6ASTRA-2, FABLE51-1/2): `6d2cdb1`, `5f12f31`, `ba5ec88`. cargo 70/70, reader
   41/41.
+- 2026-09-23 — Roll-up fixes (PLAN.md §2.3/§3/§5; DEEPSEEKV4PRO-2, GPT6ASTRA-2,
+  FABLE51-3): `d5ac0d2`, `c7c305b`, `ef0c6d3`.

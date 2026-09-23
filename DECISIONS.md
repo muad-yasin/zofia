@@ -503,3 +503,26 @@ the owner wants every launch to be a fresh choice.
   mock edit needs a rebuild before a container run.
 - **A byte counter on the terminal host** (`data-bytes-in`): a count only, never content.
   It tells "no events" apart from "not painted".
+
+## 2026-09-23 — correction to the decision-4 entry, and roll-up fixes (zofia-26)
+
+- **Correction (dated, the entry above is left as written):** the decision-4 entry says
+  the owner's `~/.claude/settings.json` shows `"model": "sonnet"`. It shows `opus[1m]`
+  (C&C checked; roll-up 2026-09-23). The decision itself stands: the center seat
+  launches with `sonnet`. The wrong parenthetical mattered. Until `ef0c6d3` the seat sent
+  no `--model`, so it ran his `opus[1m]` default, never Sonnet. Rust now falls back to
+  `config/providers.json`'s default.
+- **Item 8 gate: never execute the disk file.** Content-matching the file still let a
+  PATH-planted `bash` run instead (the mock's `#!/usr/bin/env bash`), and left a
+  window between the check and the exec. Running `/bin/bash -c` on the compiled-in bytes
+  removes both. The disk file only signals intent.
+- **Confirmation = digest.** The owner confirms the exact bytes the dialog showed;
+  any change since then needs a new confirmation.
+
+## 2026-09-23 — OWNER DECISION: session-assignment persistence = option B
+
+**Muad's words, relayed by C&C (thcmcp-31):** *"Idk a b or c, but temporary folder
+sounds fine."* Read as option B from the proposal above:
+`$XDG_RUNTIME_DIR/zofia/assignments.json`, restored across a GUI restart, gone at reboot,
+restored corners marked "restored", with a one-click "clear all". No picker (option A's
+extra wasn't asked for).

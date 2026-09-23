@@ -49,9 +49,8 @@ needs root).
 - **Session assignment (item 3) doesn't persist across a GUI restart** — the owner would
   have to re-type each corner's session_id every launch. No persistence design exists
   yet (where it'd live, what format, whether it should even survive a restart given
-  registration is meant to be deliberate each time). **Proposal with options A/B/C and
-  a recommendation (B: tmpfs, until reboot) is in `DECISIONS.md`, 2026-09-23; waiting on
-  the owner's pick.**
+  registration is meant to be deliberate each time). **Owner picked B (2026-09-23,
+  `DECISIONS.md`): tmpfs, until reboot. zofia-26 is building it.**
 - **The real Tauri `invoke("register_session", …)` argument-name conversion has never
   fired at runtime** (item 3) — relies on Tauri v2's documented default
   camelCase/snake_case convention; `cargo test` has no GUI and Playwright runs against

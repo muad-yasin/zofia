@@ -311,3 +311,16 @@ process outlives the app. Screenshot reviewed by eye.
   frames). Every render check comes from the Xvfb container.
 - Only Fedora 44 is declared (`packaging/linux-support.md`). No older baseline yet.
 - Release extras (checksums, inventory, notices, pinned linuxdeploy) are not started.
+
+## 2026-09-23 — roll-up fixes (zofia-26)
+
+- `d5ac0d2`: the egress harness counts resolver sockets as DNS egress, keeps exe
+  attribution across threads and forks, and refuses a window under 600s. test:egress
+  10/10.
+- `c7c305b`: provider_guard refuses openrouter/auto, x_ai/ and x.ai/. zofia-8b mirrored
+  it in the schema (`e96267c`, alongside its effort fix).
+- `ef0c6d3`: the seat launches with `sonnet` (decision 4); the mock runs as embedded
+  bytes under `/bin/bash`; confirmation is bound to a digest; an exited leader is reaped
+  even while a child holds the pty. cargo 72/72, e2e 12/12.
+- **Not verified in a real window yet:** all of `ef0c6d3`. zofia-8b's smoke needs a
+  rebuild, plus its "CLI default" assertion changed to "sonnet" (told).
