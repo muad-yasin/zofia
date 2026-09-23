@@ -19,7 +19,8 @@
     "audit:egress": "bash scripts/egress-audit.sh",
     "build:appimage": "NO_STRIP=true tauri build --bundles appimage",
     "test:appimage": "test/appimage/run-clean.sh",
-    "test:probe": "node --test test/probe/*.test.mjs"
+    "test:probe": "node --test test/probe/*.test.mjs",
+    "test:appimage-live": "test/appimage/run-live.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
