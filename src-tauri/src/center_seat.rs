@@ -44,10 +44,12 @@ pub fn policy_args(web_opt_in: bool) -> Vec<String> {
     vec!["--restricted".into(), "--tools".into(), tools.into(), "--strict-mcp-config".into()]
 }
 
-/// The exact argv the center seat launches with: the policy first, then the model.
+/// The exact argv the center seat launches with: the policy first, then the model, then
+/// the owner's default effort (decision 2) if the CLI's effort flag is known.
 pub fn seat_argv(model: Option<&str>, web_opt_in: bool) -> Result<Vec<String>, String> {
     let mut argv = policy_args(web_opt_in);
     argv.extend(model_args(model)?);
+    argv.extend(crate::provider_guard::default_effort_args());
     Ok(argv)
 }
 
@@ -350,9 +352,12 @@ mod tests {
     #[test]
     fn the_seat_launches_with_the_tool_policy_and_the_mock_sees_it() {
         let argv = seat_argv(Some("sonnet"), false).unwrap();
-        assert_eq!(argv, ["--restricted", "--tools", "Read,Grep,Glob", "--strict-mcp-config", "--model", "sonnet"]);
+        assert_eq!(
+            argv,
+            ["--restricted", "--tools", "Read,Grep,Glob", "--strict-mcp-config", "--model", "sonnet", "--effort", "medium"]
+        );
         assert!(seat_argv(None, true).unwrap().contains(&"Read,Grep,Glob,WebSearch,WebFetch".to_string()));
-        assert!(seat_argv(None, false).unwrap().ends_with(&["--model".to_string(), "sonnet".to_string()]));
+        assert!(seat_argv(None, false).unwrap().ends_with(&["--model", "sonnet", "--effort", "medium"].map(String::from)));
         assert!(seat_argv(Some("grok-4"), false).is_err());
 
         let refs: Vec<&str> = argv.iter().map(String::as_str).collect();

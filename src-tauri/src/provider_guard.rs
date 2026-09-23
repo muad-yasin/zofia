@@ -84,6 +84,19 @@ pub fn default_model() -> &'static str {
     generated::DEFAULT_MODEL
 }
 
+/// `[effort_key, default_effort]` from config/providers.json (owner decision 2: medium), or
+/// nothing while the CLI's effort flag is unmeasured. Never a guessed flag.
+pub fn default_effort_args() -> Vec<String> {
+    effort_args_with(generated::EFFORT_KEYS, generated::DEFAULT_EFFORT)
+}
+
+fn effort_args_with(keys: &[(&str, Option<&str>)], level: &str) -> Vec<String> {
+    match keys.iter().find(|(p, _)| *p == "anthropic").and_then(|(_, k)| *k) {
+        Some(key) => vec![key.to_string(), level.to_string()],
+        None => Vec::new(),
+    }
+}
+
 /// `check_model_with` against the aliases generated from config/providers.json.
 pub fn check_model(input: &str) -> Result<String, ModelRejection> {
     check_model_with(input, generated::ALIASES)
@@ -93,6 +106,12 @@ pub fn check_model(input: &str) -> Result<String, ModelRejection> {
 mod tests {
     use super::generated::{DEFAULT_MODEL, MODEL_IDS};
     use super::*;
+
+    #[test]
+    fn default_effort_is_passed_only_through_a_known_key() {
+        assert_eq!(default_effort_args(), ["--effort", "medium"]);
+        assert!(effort_args_with(&[("anthropic", None)], "medium").is_empty());
+    }
 
     #[test]
     fn configured_models_pass() {

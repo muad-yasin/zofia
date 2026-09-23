@@ -150,8 +150,11 @@ function runCase(cli, argsBase, { name, tool, hostile }) {
 
 export function probe(cli, { log = console.log } = {}) {
   const { args: policy, allowed } = seatPolicyArgs();
-  const model = JSON.parse(readFileSync(join(REPO, "config/providers.json"), "utf8")).default_model.value;
-  const argsBase = [...policy, "--model", model];
+  const cfg = JSON.parse(readFileSync(join(REPO, "config/providers.json"), "utf8"));
+  const model = cfg.default_model.value;
+  // The seat's own effort flag too (center_seat.rs seat_argv), so the probe runs what ships.
+  const key = cfg.providers.find((p) => p.id === "anthropic")?.launch.effort_key.value;
+  const argsBase = [...policy, "--model", model, ...(key && key !== "UNKNOWN" ? [key, cfg.default_effort.value] : [])];
   const cases = [
     { name: "control-read", tool: "Read" },
     ...DENIED.map((tool) => ({ name: `deny-${tool}`, tool })),

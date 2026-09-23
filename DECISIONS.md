@@ -562,3 +562,16 @@ checked his reading.
   and the corners are read-only. Any future feature that sends input into a session
   without a human typing it would fall outside this reading. It would need his go again.
 
+## 2026-09-23 — decision 2 applied: the seat launches with `--effort medium`
+
+C&C (thcmcp-31) checked `claude --help` for 2.1.280 and found `--effort <level>`,
+"Effort level for the current session (low, medium, high, xhigh, max)". This session
+confirmed the same strings in the installed 2.1.280 binary without running the CLI. That
+check is now `docs/field-availability.md#cli-effort-flag`, and `effort_key` is `--effort`
+with that source. `seat_argv` ends with `--model sonnet --effort medium`. A cargo test
+asserts the argv the mock actually receives. The item 8 probe passes the same flag, so
+it tests what ships. This supersedes the "no launch path applies it yet" line in the
+decision-2 entry above. That entry is left as written.
+**Still UNKNOWN:** which levels each model accepts, and what any level costs.
+`effort_levels` stays `UNKNOWN` for every model.
+

@@ -31,8 +31,8 @@ closed items 7 and 9 and its share of the item 1-3 audit fixes (#2-#9 in
    600s, zero non-loopback attempts from the AppImage's tree (`docs/EGRESS-AUDIT-2026-09-23.md`).
    The real center-seat child's attributed leg is item 8's.
 7. ✅ **Provider/effort config** (§5) — `50ced01` (schema, generator, stale lint) and
-   `cc09e9a` (runtime guard). Default effort = Medium (owner decision 7); the
-   measured levels and launch key are still `UNKNOWN`.
+   `cc09e9a` (runtime guard). The seat launches with `--effort medium` (owner decision 7);
+   per-model levels are still `UNKNOWN`.
 8. Blocked — **Real-subscription center-seat testing**. His ToS read is done (decision 1
    below). It now waits only on the clearance file he creates by hand.
 9. ✅ **Scope-ledger lint** (added 2026-09-22 by C&C) — `69e561c`. Warns on three
@@ -74,8 +74,8 @@ session must never do"; `PLAN.md` §9.2).
 6. Not done — **Confirm whether Windows packaging is ever reopened.** Not blocking
    anything currently building.
 7. ✅ (default only) — **Decide real effort-tier values.** 2026-09-23, relayed by C&C:
-   default = Medium (`config/providers.json`, `DECISIONS.md`). The per-model levels and
-   the CLI effort key are still unmeasured, so the default isn't applied at launch yet.
+   default = Medium. The seat launches with `--effort medium` (`DECISIONS.md`). Per-model
+   levels and their costs are still unmeasured.
 
 Full detail lives elsewhere on purpose, not duplicated here: `PLAN.md` (the plan and its
 reasoning), `HANDOFF.md` (build order and acceptance tests), `PROGRESS.md` (done vs.

@@ -41,6 +41,16 @@ distinct (#8, #9); the CLI's own JSON groups them under one `tokenSpend` key wit
 sub-fields, matching HANDOFF.md's "nine field keys" literally — see
 `reader/src/fieldSchema.mjs`.
 
+## CLI launch flags (center seat)
+
+<a id="cli-effort-flag"></a>**Effort flag.** `claude --help` for 2.1.280 lists `--effort <level>`: "Effort
+level for the current session (low, medium, high, xhigh, max)". Checked by C&C (thcmcp-31)
+on 2026-09-23. This session confirmed it without running the CLI, by finding the same
+help strings in the installed 2.1.280 binary. `config/providers.json` uses it as
+`effort_key`, and the seat launches with `--effort medium` (owner decision 2).
+**Not measured:** which levels each model accepts, and what any level costs in tokens,
+time or quality. `effort_levels` stays `UNKNOWN` for every model.
+
 ## A finding beyond the table: the opt-in transcript toggle isn't needed for v1
 
 PLAN.md §2.1 built in an opt-in, off-by-default transcript-JSONL fallback specifically

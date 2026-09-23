@@ -28,8 +28,8 @@ across the owner's projects. One dated entry per item; never rewritten once arch
 
 - **Owner decision 2, effort default.** Muad, relayed by C&C (thcmcp-31): *"I'd go with
   Medium as the default"*. `config/providers.json` `default_effort: medium`, with detail in
-  `DECISIONS.md`. The per-model levels and the CLI effort key stay `UNKNOWN` until
-  measured, so no launch applies it yet.
+  `DECISIONS.md`. Later the same day, C&C found the CLI's `--effort` flag and the seat
+  now launches with `--effort medium`. Per-model levels stay `UNKNOWN`.
 - **Owner decision 1, his own ToS read.** Muad, relayed by C&C (thcmcp-31): *"always a
   human giving the C&C session instructions ... this is 'ordinary, individual usage' ...
   I think this concept is OK to proceed"*. Details in `DECISIONS.md`. Item 8 still waits
