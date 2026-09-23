@@ -13,20 +13,38 @@
 //   EXCEPT port 53. A DNS query to a local stub (systemd-resolved's 127.0.0.53) is a
 //   lookup that would leave the machine outside the namespace, so it counts as egress.
 // - Any other AF_INET/AF_INET6 address: a violation.
-// - AF_UNIX / AF_NETLINK: local. Unix socket paths are listed in the report, because a
-//   local daemon (D-Bus, a portal) could relay traffic on the tree's behalf, and this
+// - AF_UNIX to a local name resolver (systemd-resolved's varlink socket, nscd, avahi):
+//   a violation. On Fedora glibc resolves through /run/systemd/resolve/io.systemd.Resolve
+//   before plain DNS, so the lookup leaves the machine via resolved and the port-53 rule
+//   never sees it (item 6 audit #1, 2026-09-23).
+// - Other AF_UNIX / AF_NETLINK: local. Unix socket paths are listed in the report, because
+//   a local daemon (D-Bus, a portal) could relay traffic on the tree's behalf, and this
 //   trace can't see past that hop. A reviewer reads the list.
 // - Any other address family: a violation, since we can't prove it's local.
+// - Attribution: a pid's exe comes from its last execve, else from its parent at clone/
+//   fork time, so a thread (strace -f prints TIDs) or an un-exec'd child keeps it. Both
+//   sides of `--allow-exe` are compared as real paths (~/.local/bin/claude is a symlink).
 // - `--allow-exe` names an executable (the center seat's own `claude`, PLAN.md §2.3's
 //   one permitted non-loopback connection) whose attempts are reported under
 //   "attributed to an allowed child". They're never dropped from the report, and they
 //   never fail the run.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const LINE = /^(\d+)\s+(?:[\d:.]+\s+)?(?:<\.\.\. )?(\w+)(?:\(| resumed>)(.*)$/;
+const LINE = /^(\d+)\s+(?:([\d:.]+)\s+)?(?:<\.\.\. )?(\w+)(?:\(| resumed>)(.*)$/;
+
+/** Unix sockets that resolve names, i.e. DNS by another route. Prefix match. */
+export const RESOLVER_SOCKETS = ['/run/systemd/resolve/', '/var/run/systemd/resolve/', '/run/nscd/', '/var/run/nscd/', '/run/avahi-daemon/', '/var/run/avahi-daemon/'];
+
+const realpathOr = (p) => {
+  try {
+    return realpathSync(p);
+  } catch {
+    return resolve(p);
+  }
+};
 
 function familyBlocks(args) {
   const out = [];
@@ -51,8 +69,12 @@ export function isLoopback(addr) {
 }
 
 export function classify(block) {
-  const { family, port, addr } = block;
-  if (family === 'AF_UNIX' || family === 'AF_NETLINK' || family === 'AF_UNSPEC') return 'local';
+  const { family, port, addr, path } = block;
+  if (family === 'AF_UNIX') {
+    const p = (path ?? '').replace(/^@?"|"$/g, '');
+    return RESOLVER_SOCKETS.some((r) => p.startsWith(r)) ? 'violation' : 'local';
+  }
+  if (family === 'AF_NETLINK' || family === 'AF_UNSPEC') return 'local';
   if (family === 'AF_INET' || family === 'AF_INET6') {
     if (port === 53) return 'violation';
     return isLoopback(addr) ? 'loopback' : 'violation';
@@ -64,12 +86,23 @@ export function parseTrace(text, { allowExe = [] } = {}) {
   const exeOf = new Map(); // pid -> last successful execve path
   const events = [];
   let syscallLines = 0;
+  let first = null;
+  let last = null;
   for (const line of text.split('\n')) {
     const m = LINE.exec(line);
     if (!m) continue;
-    const [, pidStr, syscall, rest] = m;
+    const [, pidStr, ts, syscall, rest] = m;
     const pid = Number(pidStr);
     syscallLines++;
+    if (ts) {
+      first ??= ts;
+      last = ts;
+    }
+    if (['clone', 'clone3', 'fork', 'vfork'].includes(syscall)) {
+      const child = /= (\d+)\s*$/.exec(rest)?.[1];
+      if (child && exeOf.has(pid) && !exeOf.has(Number(child))) exeOf.set(Number(child), exeOf.get(pid));
+      continue;
+    }
     if (syscall === 'execve') {
       const path = /^"([^"]+)"/.exec(rest)?.[1];
       if (path && !/= -1 /.test(rest)) exeOf.set(pid, path);
@@ -80,8 +113,8 @@ export function parseTrace(text, { allowExe = [] } = {}) {
       events.push({ pid, exe: exeOf.get(pid) ?? null, syscall, ...block, verdict: classify(block) });
     }
   }
-  const allowed = new Set(allowExe.map((p) => resolve(p)));
-  const isAllowed = (e) => e.exe !== null && allowed.has(resolve(e.exe));
+  const allowed = new Set(allowExe.map(realpathOr));
+  const isAllowed = (e) => e.exe !== null && allowed.has(realpathOr(e.exe));
   const bad = events.filter((e) => e.verdict === 'violation');
   return {
     syscallLines,
@@ -90,7 +123,15 @@ export function parseTrace(text, { allowExe = [] } = {}) {
     allowedChildEgress: bad.filter(isAllowed),
     unixPaths: [...new Set(events.filter((e) => e.family === 'AF_UNIX' && e.path).map((e) => e.path))],
     loopback: events.filter((e) => e.verdict === 'loopback').length,
+    span: first && last ? { first, last, seconds: secondsBetween(first, last) } : null,
   };
+}
+
+function secondsBetween(a, b) {
+  const s = (t) => t.split(':').reduce((acc, x) => acc * 60 + Number(x), 0);
+  let d = s(b) - s(a);
+  if (d < 0) d += 86400; // crossed midnight
+  return Math.round(d);
 }
 
 const where = (e) => `${e.syscall} pid ${e.pid} (${e.exe ?? 'exe unknown: started before tracing'}) -> ${e.family} ${e.addr ?? ''}${e.port !== null ? `:${e.port}` : ''}`;
@@ -120,6 +161,7 @@ function main(argv) {
     return 2;
   }
   console.log(`traced syscalls: ${r.syscallLines}; socket addresses seen: ${r.events.length}; loopback: ${r.loopback}`);
+  console.log(r.span ? `trace covers ${r.span.first} -> ${r.span.last} (${r.span.seconds}s)` : 'trace has no timestamps (not recorded with -tt)');
   if (r.unixPaths.length) console.log(`unix sockets contacted (review: a local daemon could relay):\n  ${r.unixPaths.join('\n  ')}`);
   if (r.allowedChildEgress.length) {
     console.log(`non-loopback attempts attributed to an allowed child (${r.allowedChildEgress.length}):\n  ${r.allowedChildEgress.map(where).join('\n  ')}`);

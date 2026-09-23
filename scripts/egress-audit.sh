@@ -22,16 +22,24 @@ duration=600
 out=""
 allow=()
 allow_early_exit=0
+self_test=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --duration) duration="$2"; shift 2 ;;
     --out) out="$2"; shift 2 ;;
     --allow-exe) allow+=(--allow-exe "$2"); shift 2 ;;
     --allow-early-exit) allow_early_exit=1; shift ;;  # self-tests run short commands
+    --self-test) self_test=1; shift ;;                  # permits a window under 600s
     --) shift; break ;;
     *) echo "egress-audit: unknown argument $1 (put the command after --)" >&2; exit 2 ;;
   esac
 done
+# §2.3 asks for 10 minutes; anything shorter is only for the harness's own self-tests.
+case "$duration" in ''|*[!0-9]*) echo "egress-audit: --duration must be a whole number of seconds, got '$duration'" >&2; exit 2 ;; esac
+if [ "$duration" -lt 600 ] && [ "$self_test" -eq 0 ]; then
+  echo "egress-audit: --duration $duration is shorter than PLAN.md §2.3's 600s (only the harness's self-tests, with --self-test, may go shorter)" >&2
+  exit 2
+fi
 [ $# -gt 0 ] || { echo "usage: egress-audit.sh [--duration S] [--out DIR] [--allow-exe P]... -- CMD..." >&2; exit 2; }
 for tool in strace unshare ip; do
   command -v "$tool" >/dev/null || { echo "egress-audit: '$tool' is not installed (Fedora: sudo dnf install $tool)" >&2; exit 2; }
@@ -71,7 +79,7 @@ set +e
 unshare --user --map-root-user --net --pid --fork --mount-proc bash -c '
   ip link set lo up || { echo "egress-audit: could not bring up loopback" >&2; exit 2; }
   exec unshare --user --map-user='"$uid"' --map-group='"$gid"' bash -c '"'"'
-    ZOFIA_SESSIONS_DIR="$sessions" strace -f -tt -s 256 -e trace=connect,sendto,sendmsg,sendmmsg,execve -o "$trace" -- "$@" &
+    ZOFIA_SESSIONS_DIR="$sessions" strace -f -tt -s 256 -e trace=connect,sendto,sendmsg,sendmmsg,execve,clone,clone3,fork,vfork -o "$trace" -- "$@" &
     tracer=$!
     mock_activity & mock=$!
     sleep "$duration"

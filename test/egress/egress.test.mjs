@@ -81,7 +81,7 @@ fi
 
 function audit(args, env = {}) {
   const out = mkdtempSync(join(tmpdir(), 'zofia-egress-run-'));
-  const r = spawnSync('bash', [AUDIT, '--out', out, ...args], {
+  const r = spawnSync('bash', [AUDIT, '--out', out, '--self-test', ...args], {
     encoding: 'utf8',
     env: { ...process.env, ...env },
     timeout: 60000,
@@ -133,4 +133,44 @@ test('real strace: a grandchild egress attempt fails the run, attributed to its 
   const clean = audit(['--duration', '3', '--allow-early-exit', '--', ...cmd]);
   assert.equal(clean.status, 0, clean.stdout + clean.stderr);
   assert.ok(existsSync(join(clean.out, 'trace.txt')));
+});
+
+// Item 6 audit #1, 2026-09-23: Fedora resolves through resolved's unix socket first.
+test('a connect to a local resolver socket counts as DNS egress', () => {
+  const trace = [
+    '7 10:00:00.1 connect(3, {sa_family=AF_UNIX, sun_path="/run/systemd/resolve/io.systemd.Resolve"}, 42) = 0',
+    '7 10:00:00.2 connect(4, {sa_family=AF_UNIX, sun_path="/run/nscd/socket"}, 19) = -1 ENOENT',
+    '7 10:00:00.3 connect(5, {sa_family=AF_UNIX, sun_path="/run/user/1000/bus"}, 21) = 0',
+  ].join('\n');
+  const r = parseTrace(trace);
+  assert.equal(r.violations.length, 2);
+  assert.ok(r.unixPaths.includes('"/run/user/1000/bus"'));
+});
+
+// Item 6 audit #2: a thread or un-exec'd child keeps its parent's exe; --allow-exe is realpath'd.
+test('threads and forked children inherit exe attribution, and --allow-exe compares real paths', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'zofia-egress-exe-'));
+  const real = join(dir, 'claude-2.1.280');
+  writeFileSync(real, '');
+  const link = join(dir, 'claude');
+  spawnSync('ln', ['-s', real, link]);
+  const trace = [
+    `200 10:00:00.1 execve("${real}", ["claude"], 0x0) = 0`,
+    '200 10:00:00.2 clone3({flags=CLONE_VM|CLONE_THREAD, exit_signal=0}, 88) = 201',
+    '201 10:00:00.3 connect(9, {sa_family=AF_INET, sin_port=htons(443), sin_addr=inet_addr("203.0.113.9")}, 16) = -1 ENETUNREACH',
+    '200 10:00:00.4 clone(child_stack=NULL, flags=SIGCHLD) = 202',
+    '202 10:00:00.5 connect(9, {sa_family=AF_INET, sin_port=htons(443), sin_addr=inet_addr("203.0.113.9")}, 16) = -1 ENETUNREACH',
+  ].join('\n');
+  const r = parseTrace(trace, { allowExe: [link] });
+  assert.equal(r.violations.length, 0, JSON.stringify(r.violations));
+  assert.equal(r.allowedChildEgress.length, 2);
+  assert.deepEqual(r.span, { first: '10:00:00.1', last: '10:00:00.5', seconds: 0 });
+});
+
+// Item 6 audit #3: a zero or garbage window can't produce a PASS.
+test('runner: a garbage or short --duration is refused outside self-tests', () => {
+  for (const d of ['abc', '0', '599', '']) {
+    const r = spawnSync('bash', [AUDIT, '--duration', d, '--', 'true'], { encoding: 'utf8' });
+    assert.equal(r.status, 2, `${d}: ${r.stderr}`);
+  }
 });
