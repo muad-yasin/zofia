@@ -8,6 +8,7 @@
 
 mod center_seat;
 mod hash_sweep;
+mod provider_guard;
 mod pty_seat;
 mod session_reader;
 mod watcher;
