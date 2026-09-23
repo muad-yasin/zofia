@@ -68,3 +68,6 @@ id(s) it serves (HANDOFF.md's own "files to keep current while building" rule).
   FABLE51-3): `d5ac0d2`, `c7c305b`, `ef0c6d3`.
 - 2026-09-23 — Session-assignment persistence, owner's option B (PLAN.md §2.1/§4;
   GPT6ASTRA-1, MUSESPARK12-2): `a9b6a29`.
+- 2026-09-23 — Real-window gap tests (PLAN.md §2.1/§3/§4): `e08caa7`
+  `test/appimage/live-gaps.mjs`, `run-live.sh`. 12/12.
+- 2026-09-23 — Reader LOWs: `01846de` (flock -w 2, 0600 non-piling backups).

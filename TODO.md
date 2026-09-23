@@ -46,15 +46,6 @@ needs root).
 
 ## Real gaps carried from `DECISIONS.md`, not yet resolved
 
-- **Session assignment (item 3) doesn't persist across a GUI restart** — the owner would
-  have to re-type each corner's session_id every launch. No persistence design exists
-  yet (where it'd live, what format, whether it should even survive a restart given
-  registration is meant to be deliberate each time). **Owner picked B (2026-09-23,
-  `DECISIONS.md`); built in `a9b6a29`. Real-window check pending.**
-- **The real Tauri `invoke("register_session", …)` argument-name conversion has never
-  fired at runtime** (item 3) — relies on Tauri v2's documented default
-  camelCase/snake_case convention; `cargo test` has no GUI and Playwright runs against
-  `vite preview`, not a real Tauri window. First real launch confirms or refutes this.
 - **What actually brings `rate_limits.five_hour` back once absent is still unknown**
   (item 1, `docs/field-availability.md` rows 3-4) — a fresh API response in that session
   is the leading guess from a 5-session sample, not a confirmed trigger.

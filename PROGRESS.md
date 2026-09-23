@@ -332,3 +332,14 @@ process outlives the app. Screenshot reviewed by eye.
 with a "Clear all corners" button that also unregisters the sessions. cargo 76/76, e2e
 13/13 (mocked Tauri IPC). **Not yet verified in a real window:** that's next, in
 `test/appimage/live-gaps.mjs`.
+
+## 2026-09-23 — real-window tests (zofia-26)
+
+**Done (`e08caa7`), `npm run test:appimage-live` 12/12** in the packaged AppImage under
+Xvfb with `--network=none`: register_session end to end; stale and ended through the
+15s tick with no file write; the assign box across a live snapshot; 62 keystrokes in
+order through WebKitGTK's fire-and-forget IPC; option B across a relaunch, plus Clear
+all. The smoke baseline, rebuilt with `a9b6a29`, is 9/9 on both launch paths.
+**Not done:** a mutation build (without the ticker) to prove the stale/ended checks
+would fail. **Still unproven by design:** OS-level key delivery. WebKitWebDriver can't
+send real keys here; input enters through xterm's own input event.
