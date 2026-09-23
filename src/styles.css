@@ -384,3 +384,4 @@ body {
 .center-confirm pre { max-height: 12rem; overflow: auto; white-space: pre-wrap; }
 .wiring-error { margin: 0; padding: 0.25rem 0.5rem; border: 1px solid currentColor; font-weight: 600; }
 .center-model:empty { display: none; }
+.center-launcher[hidden] { display: none; }

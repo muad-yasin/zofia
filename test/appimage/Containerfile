@@ -1,0 +1,11 @@
+# PLAN.md §6 clean-image smoke for the packaged AppImage. Built once with network; the
+# smoke itself runs with --network=none (see test/appimage/run-clean.sh). Holds only what
+# a desktop user would already have plus the test driver: an X server (Xvfb), FUSE 2 for
+# the AppImage runtime, and WebKitWebDriver + node to drive it. No Rust, no Tauri
+# toolchain, no WebKitGTK 4.1 (the AppImage bundles its own).
+FROM registry.fedoraproject.org/fedora:44
+RUN dnf -y install --setopt=install_weak_deps=False \
+      xorg-x11-server-Xvfb xorg-x11-xauth webkitgtk6.0 nodejs fuse fuse-libs procps-ng \
+      mesa-dri-drivers dbus-daemon && dnf clean all
+RUN useradd -m tester
+USER tester

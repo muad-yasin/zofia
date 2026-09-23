@@ -16,6 +16,7 @@ const RESWEEP_MS = 5000;
 
 interface ForeignSettingsInfo {
   settings_json: string | null;
+  settings_local_json: string | null;
   mcp_json: string | null;
 }
 
@@ -72,7 +73,13 @@ export async function mountCenterSeat(body: HTMLElement): Promise<void> {
   });
   new ResizeObserver(() => fit.fit()).observe(termHost);
 
-  await listen<number[]>("zofia://center-output", (e) => term.write(new Uint8Array(e.payload)));
+  let bytesIn = 0;
+  await listen<number[]>("zofia://center-output", (e) => {
+    bytesIn += e.payload.length;
+    termHost.dataset.bytesIn = String(bytesIn); // byte count only, never content: lets the smoke test tell "no events" from "not rendered"
+    term.write(new Uint8Array(e.payload));
+  });
+  // Rust frees the seat's slot before emitting this, so Launch works again at once.
   await listen("zofia://center-exit", () => {
     running = false;
     launcher.hidden = false;
@@ -131,6 +138,7 @@ function showForeignSettingsDialog(host: HTMLElement, info: ForeignSettingsInfo,
 
   for (const [name, text] of [
     [".claude/settings.json", info.settings_json],
+    [".claude/settings.local.json", info.settings_local_json],
     [".mcp.json", info.mcp_json],
   ] as const) {
     if (text === null) continue;

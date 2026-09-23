@@ -16,7 +16,9 @@
     "test:lint": "node --test test/lint/*.test.mjs",
     "lint:ledger": "node scripts/check-scope-ledger.mjs",
     "test:egress": "node --test test/egress/*.test.mjs",
-    "audit:egress": "bash scripts/egress-audit.sh"
+    "audit:egress": "bash scripts/egress-audit.sh",
+    "build:appimage": "NO_STRIP=true tauri build --bundles appimage",
+    "test:appimage": "test/appimage/run-clean.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
