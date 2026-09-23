@@ -32,8 +32,8 @@
             "properties": {
               "kind": { "enum": ["claude-code-cli"] },
               "effort_key": {
-                "$comment": "Where a CLI-spawned seat's effort goes. Verify against current CLI docs; never guessed (PLAN.md §5).",
-                "$ref": "#/$defs/sourcedValue"
+                "$comment": "Where a CLI-spawned seat's effort goes. Verify against current CLI docs; never guessed (PLAN.md §5). Either both halves are UNKNOWN, or the value carries a measured-matrix tag.",
+                "$ref": "#/$defs/effortKey"
               }
             }
           },
@@ -81,9 +81,9 @@
   },
   "$defs": {
     "notForbidden": {
-      "$comment": "Standing rule: no xAI/Grok anywhere (CLAUDE.md). Case-insensitive by construction; JS regex has no inline (?i).",
+      "$comment": "Standing rule: no xAI/Grok anywhere (CLAUDE.md), including x-ai/x_ai/x.ai segments and openrouter/auto (it can route to any lab). Kept in step with src-tauri/src/provider_guard.rs. Case-insensitive by construction; JS regex has no inline (?i).",
       "type": "string",
-      "not": { "pattern": "[Gg][Rr][Oo][Kk]|(^|[/:])[Xx]-?[Aa][Ii]($|[/:_.-])" }
+      "not": { "pattern": "[Gg][Rr][Oo][Kk]|(^|[/:])[Xx][-_.]?[Aa][Ii]($|[/:_.-])|(^|/)[Oo][Pp][Ee][Nn][Rr][Oo][Uu][Tt][Ee][Rr]/[Aa][Uu][Tt][Oo]($|:)" }
     },
     "providerId": {
       "allOf": [
@@ -99,20 +99,28 @@
     },
     "source": { "type": "string", "pattern": "\\S" },
     "measuredSource": {
-      "$comment": "Every effort value must point at item 1's measured matrix, or read UNKNOWN (HANDOFF item 7).",
-      "anyOf": [
-        { "const": "UNKNOWN" },
-        { "type": "string", "pattern": "^docs/field-availability\\.md#" }
-      ]
+      "$comment": "A real effort value must point at a non-empty anchor in item 1's measured matrix (HANDOFF item 7). UNKNOWN is never a source for a real value: an unmeasured value is written as the value UNKNOWN itself (effort_levels: \"UNKNOWN\", or an effort_key of UNKNOWN/UNKNOWN), so it can't ship looking measured.",
+      "type": "string",
+      "pattern": "^docs/field-availability\\.md#\\S+$"
     },
-    "sourcedValue": {
-      "type": "object",
-      "required": ["value", "source"],
-      "additionalProperties": false,
-      "properties": {
-        "value": { "type": "string" },
-        "source": { "$ref": "#/$defs/measuredSource" }
-      }
+    "effortKey": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["value", "source"],
+          "additionalProperties": false,
+          "properties": { "value": { "const": "UNKNOWN" }, "source": { "const": "UNKNOWN" } }
+        },
+        {
+          "type": "object",
+          "required": ["value", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "value": { "type": "string", "pattern": "^(?!UNKNOWN$)\\S+$" },
+            "source": { "$ref": "#/$defs/measuredSource" }
+          }
+        }
+      ]
     }
   }
 }

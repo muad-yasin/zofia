@@ -97,15 +97,32 @@ export function validate(value, schema, root = schema, path = '$') {
 }
 
 // Cross-entry rules a per-value schema cannot express.
+// A real effort value's source: a non-empty anchor in item 1's measured matrix.
+const MEASURED_TAG = /^docs\/field-availability\.md#\S+$/;
+
 export function crossCheck(cfg) {
   const errs = [];
   const seen = new Set();
   for (const p of cfg.providers) {
     if (seen.has(`p:${p.id}`)) errs.push(`duplicate provider id "${p.id}"`);
     seen.add(`p:${p.id}`);
+    // Repeats the schema's effort rules on purpose: an unmeasured value must never render
+    // as a real one, even if the hand-written validator has a gap.
+    const key = p.launch.effort_key;
+    if ((key.value === 'UNKNOWN') !== (key.source === 'UNKNOWN')) {
+      errs.push(`provider "${p.id}": effort_key must be UNKNOWN in both value and source, or a real value with a measured tag`);
+    } else if (key.value !== 'UNKNOWN' && !MEASURED_TAG.test(key.source)) {
+      errs.push(`provider "${p.id}": effort_key source "${key.source}" is not a docs/field-availability.md#<anchor> tag`);
+    }
     for (const m of p.models) {
       if (seen.has(`m:${m.id}`)) errs.push(`duplicate model id "${m.id}"`);
       seen.add(`m:${m.id}`);
+      if (m.effort_levels === 'UNKNOWN') continue;
+      for (const e of m.effort_levels) {
+        if (e.level === 'UNKNOWN' || !MEASURED_TAG.test(e.source ?? '')) {
+          errs.push(`model "${m.id}": effort level "${e.level}" has no measured tag (source "${e.source}"); write effort_levels: "UNKNOWN" instead`);
+        }
+      }
     }
   }
   if (!seen.has(`m:${cfg.default_model.value}`)) {
@@ -139,7 +156,7 @@ export function render(cfg) {
     id: p.id,
     label: p.label,
     launchKind: p.launch.kind,
-    effortKey: p.launch.effort_key.value === 'UNKNOWN' ? null : p.launch.effort_key.value,
+    effortKey: p.launch.effort_key.value === 'UNKNOWN' || p.launch.effort_key.source === 'UNKNOWN' ? null : p.launch.effort_key.value,
   }));
   const aliases = Object.entries(cfg.aliases);
 

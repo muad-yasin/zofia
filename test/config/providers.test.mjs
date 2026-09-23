@@ -6,7 +6,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { validate, TS_OUT, RS_OUT } from '../../scripts/gen-providers.mjs';
+import { validate, crossCheck, TS_OUT, RS_OUT } from '../../scripts/gen-providers.mjs';
 
 const REPO = resolve(import.meta.dirname, '../..');
 const GEN = join(REPO, 'scripts/gen-providers.mjs');
@@ -45,6 +45,10 @@ for (const [name, fn] of [
   ['an alias pointing at grok', (c) => (c.aliases.fast = 'grok-5')],
   ['an alias named grok', (c) => (c.aliases.grok = 'sonnet')],
   ['a grok default model', (c) => (c.default_model.value = 'grok-5')],
+  ['an x_ai/ prefixed model id', (c) => (c.providers[0].models[0].id = 'x_ai/some-model')],
+  ['an x.ai/ prefixed model id', (c) => (c.providers[0].models[0].id = 'x.ai/some-model')],
+  ['openrouter/auto', (c) => (c.providers[0].models[0].id = 'openrouter/auto')],
+  ['openrouter/auto with a variant', (c) => (c.providers[0].models[0].id = 'OpenRouter/Auto:floor')],
 ]) {
   test(`schema rejects ${name}`, () => {
     const r = run(mutate(fn));
@@ -53,17 +57,47 @@ for (const [name, fn] of [
   });
 }
 
-test('effort levels need a measured-matrix source tag or UNKNOWN', () => {
-  const bad = run(mutate((c) => (c.providers[0].models[0].effort_levels = [{ level: 'high', source: 'I think so' }])));
-  assert.equal(bad.code, 1, bad.out);
-  const untagged = run(mutate((c) => (c.providers[0].models[0].effort_levels = [{ level: 'high' }])));
-  assert.equal(untagged.code, 1, untagged.out);
-  const ok = run(mutate((c) => (c.providers[0].models[0].effort_levels = [
+test('an effort level needs a measured-matrix tag; a level sourced UNKNOWN never ships', () => {
+  const setLevels = (levels) => mutate((c) => (c.providers[0].models[0].effort_levels = levels));
+  for (const [why, levels] of [
+    ['free-text source', [{ level: 'high', source: 'I think so' }]],
+    ['no source', [{ level: 'high' }]],
+    ['source UNKNOWN (used to render as a real level)', [{ level: 'high', source: 'docs/field-availability.md#row-2' }, { level: 'low', source: 'UNKNOWN' }]],
+    ['empty anchor', [{ level: 'high', source: 'docs/field-availability.md#' }]],
+  ]) {
+    const r = run(setLevels(levels));
+    assert.equal(r.code, 1, `${why}: ${r.out}`);
+  }
+  const ok = run(setLevels([
     { level: 'high', source: 'docs/field-availability.md#row-2' },
-    { level: 'low', source: 'UNKNOWN' },
-  ])));
+    { level: 'low', source: 'docs/field-availability.md#row-2' },
+  ]));
   assert.equal(ok.code, 0, ok.out);
   assert.match(readFileSync(join(ok.dir, RS_OUT), 'utf8'), /\("sonnet", Some\(&\["high", "low"\]\)\)/);
+});
+
+test('effort_key: UNKNOWN in both halves, or a real value with a measured tag', () => {
+  const setKey = (key) => mutate((c) => (c.providers[0].launch.effort_key = key));
+  for (const key of [
+    { value: '--effort', source: 'UNKNOWN' },
+    { value: 'UNKNOWN', source: 'docs/field-availability.md#row-2' },
+    { value: '--effort', source: 'the docs' },
+  ]) {
+    assert.equal(run(setKey(key)).code, 1, JSON.stringify(key));
+  }
+  const unknown = run(setKey({ value: 'UNKNOWN', source: 'UNKNOWN' }));
+  assert.equal(unknown.code, 0, unknown.out);
+  assert.match(readFileSync(join(unknown.dir, RS_OUT), 'utf8'), /EFFORT_KEYS: &\[\(&str, Option<&str>\)\] = &\[\("anthropic", None\)\]/);
+  const real = run(setKey({ value: '--effort', source: 'docs/field-availability.md#row-2' }));
+  assert.equal(real.code, 0, real.out);
+});
+
+test('crossCheck alone (schema bypassed) still refuses an unmeasured effort value', () => {
+  const lvl = mutate((c) => (c.providers[0].models[0].effort_levels = [{ level: 'low', source: 'UNKNOWN' }]));
+  assert.ok(crossCheck(lvl).some((e) => /no measured tag/.test(e)));
+  const key = mutate((c) => (c.providers[0].launch.effort_key = { value: '--effort', source: 'UNKNOWN' }));
+  assert.ok(crossCheck(key).some((e) => /effort_key/.test(e)));
+  assert.deepEqual(crossCheck(REAL), []);
 });
 
 test('every effort value in the real config is UNKNOWN or tagged to the measured matrix', () => {
@@ -74,7 +108,7 @@ test('every effort value in the real config is UNKNOWN or tagged to the measured
       tags.push(m.effort_levels.map((e) => e.source));
     }
   }
-  for (const t of tags.flat()) assert.match(t, /^(UNKNOWN|docs\/field-availability\.md#)/);
+  for (const t of tags.flat()) assert.match(t, /^(UNKNOWN|docs\/field-availability\.md#\S+)$/);
 });
 
 test('cross-entry rules: duplicates, undeclared targets, shadowing aliases', () => {
