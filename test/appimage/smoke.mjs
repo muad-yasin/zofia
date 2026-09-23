@@ -88,7 +88,8 @@ try {
     step(`bytes received by the pane: ${await run("return document.querySelector('.center-term').dataset.bytesIn || '0';")}`);
   }
   check("center seat launches the mock and renders its output", Boolean(ready));
-  check("pane shows the launched model", (await textContent(".center-model")).includes("sonnet"));
+  const modelLine = await textContent(".center-model");
+  check("pane shows the launched model and effort", modelLine.trim() === "Model: sonnet · effort: medium", modelLine);
   check("launcher hides while the seat runs", await run("return document.querySelector('.center-launcher').offsetParent === null;"));
   step("typing into the terminal");
   await typeIntoTerminal("hello zofia\r");

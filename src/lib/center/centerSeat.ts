@@ -102,11 +102,12 @@ export async function mountCenterSeat(body: HTMLElement): Promise<void> {
   const spawn = async (workdir: string, confirmedDigest: string | null) => {
     try {
       // No model picker yet: null means config/providers.json's default (owner decision 4,
-      // sonnet), applied in Rust. The pane shows the id Rust actually launched with.
-      const model = await invoke<string>("center_spawn", { workdir, confirmedDigest, model: null });
+      // sonnet), applied in Rust. The pane shows the model and effort Rust read back from
+      // the argv it actually launched (effort: owner decision 2).
+      const launched = await invoke<{ model: string; effort: string | null }>("center_spawn", { workdir, confirmedDigest, model: null });
       running = true;
       launcher.hidden = true;
-      modelLine.textContent = `Model: ${model}`;
+      modelLine.textContent = `Model: ${launched.model}` + (launched.effort ? ` · effort: ${launched.effort}` : "");
       notice.textContent = "";
       notice.classList.remove("center-warning");
       await invoke("center_resize", { sessionId: CENTER_SEAT_SESSION_ID, rows: term.rows, cols: term.cols });

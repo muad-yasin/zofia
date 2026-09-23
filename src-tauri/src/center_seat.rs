@@ -129,7 +129,7 @@ pub fn center_spawn(
     workdir: String,
     confirmed_digest: Option<String>,
     model: Option<String>,
-) -> Result<String, String> {
+) -> Result<Launched, String> {
     let dir = Path::new(&workdir);
     if !dir.is_dir() {
         return Err(format!("not a directory: {workdir}"));
@@ -139,8 +139,8 @@ pub fn center_spawn(
     // PLAN.md §5: an xAI/Grok id is refused here at runtime, whatever the config said.
     // The web opt-in has no UI yet, so it's off (PLAN.md §3's default).
     let args = seat_argv(model.as_deref(), false)?;
-    let shown_model = model_args(model.as_deref())?[1].clone();
     let (program, argv) = launch_plan(&command, &args);
+    let launched = launched_as(&argv)?;
 
     let mut slot = seat.0.lock().map_err(|e| e.to_string())?;
     if slot.is_some() {
@@ -152,8 +152,21 @@ pub fn center_spawn(
     *slot = Some(pty);
     forward_output(app.clone(), reader, pid);
     watch_leader(app, pid);
-    // Returned so the pane shows the model the seat was actually launched with.
-    Ok(shown_model)
+    // Returned so the pane shows the model and effort the seat was actually launched with.
+    Ok(launched)
+}
+
+/// What the pane shows, read back from the exact argv handed to the PTY, never from config.
+#[derive(Debug, PartialEq, Eq, serde::Serialize)]
+pub struct Launched {
+    pub model: String,
+    pub effort: Option<String>,
+}
+
+pub fn launched_as(argv: &[String]) -> Result<Launched, String> {
+    let value = |flag: &str| argv.iter().position(|a| a == flag).and_then(|i| argv.get(i + 1)).cloned();
+    let model = value("--model").ok_or("the seat's argv has no --model")?;
+    Ok(Launched { model, effort: value("--effort") })
 }
 
 /// `--model <resolved id>`, always. No selection means config/providers.json's default
@@ -359,6 +372,12 @@ mod tests {
         assert!(seat_argv(None, true).unwrap().contains(&"Read,Grep,Glob,WebSearch,WebFetch".to_string()));
         assert!(seat_argv(None, false).unwrap().ends_with(&["--model", "sonnet", "--effort", "medium"].map(String::from)));
         assert!(seat_argv(Some("grok-4"), false).is_err());
+        // The pane's "Model · effort" line comes from this same argv, after launch_plan.
+        let (_, planned) = launch_plan(&resolve_command(Some(mock_path())).unwrap(), &argv);
+        assert_eq!(launched_as(&planned).unwrap(), Launched { model: "sonnet".into(), effort: Some("medium".into()) });
+        let no_effort: Vec<String> = ["--model", "opus"].map(String::from).to_vec();
+        assert_eq!(launched_as(&no_effort).unwrap().effort, None);
+        assert!(launched_as(&[]).is_err());
 
         let refs: Vec<&str> = argv.iter().map(String::as_str).collect();
         let (pty, mut reader) = pty_seat::spawn(&resolve_command(Some(mock_path())).unwrap(), &refs, Path::new("/tmp")).unwrap();
