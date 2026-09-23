@@ -434,3 +434,32 @@ not the implementation.
 - **The resweep's cost remains.** Moving it off the main thread and off the lock fixes the
   freezes. With workdir = $HOME it still hashes ~70 MiB every 5s. Caching by mtime is a
   possible follow-up, not done.
+
+## 2026-09-23 — PROPOSAL for the owner: should corner assignments survive a restart? (zofia-26, no code)
+
+**The gap (TODO.md):** each corner's session_id is typed by hand and lost when the GUI
+closes. PLAN.md §2.1 wants registration to be deliberate, never auto-discovery. Its own
+wording is "the owner assigns a *detected* session_id to each corner by hand".
+
+**Facts that bound the choice.** Session state files live on tmpfs
+(`$XDG_RUNTIME_DIR/zofia/sessions`) and are gone after a reboot. Unverified: whether a
+resumed Claude Code session keeps its old id. If it doesn't, any saved id is dead after
+a reboot anyway.
+
+| | A. Don't persist; offer a picker | B. Persist until reboot (recommended) | C. Persist on disk |
+|---|---|---|---|
+| Where | nothing stored; the assign box lists the ids that have a state file right now | `$XDG_RUNTIME_DIR/zofia/assignments.json`, next to the session files (0600, dir 0700, tmpfs) | `~/.config/de.sower.zofia/assignments.json` (0600) |
+| Format | none | `{"version":1,"corners":[{"corner":0,"session_id":"<uuid>","label":"…","assigned_at":<epoch>}]}`, written atomically on every assign or clear | same as B |
+| Survives | nothing | a GUI restart or crash, not a reboot: the same lifetime as the data it points at | everything, including ids that are long dead |
+| "Deliberate" | every launch is a fresh choice, but one click instead of pasting a UUID | the owner's choice is restored, not remade, and marked "restored" with a one-click "clear all" | as B, but it resurrects choices from past boots |
+| Privacy | lists session file names (UUIDs) only, never their contents; nothing new is stored | ids plus the labels he typed, in RAM-backed storage, gone at shutdown; no content | the same metadata, kept on disk indefinitely: a record of which sessions he watched, and when |
+| Cost | small UI change; Rust lists the directory | a small Rust read/write plus restore-on-start; the tests are easy | as B, plus a stale-id story |
+
+**Recommendation: B, with A's picker as an optional extra.** B fixes the actual annoyance
+(retyping after a GUI restart). It stores nothing that outlives the session files
+themselves, and restoring is visible and reversible, so registration stays deliberate.
+C buys only surviving a reboot, where the ids are probably stale, and it's the only
+option that writes this metadata to disk. A alone is the most conservative choice if
+the owner wants every launch to be a fresh choice.
+
+**Needs the owner:** pick A, B, B+A or C. Nothing is built until he does.
