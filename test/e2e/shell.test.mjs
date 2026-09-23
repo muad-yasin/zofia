@@ -10,7 +10,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,6 +23,10 @@ let previewProc;
 let browser;
 
 before(async () => {
+  // vite preview serves dist/ as-is; build first so the suite never checks a stale build
+  // (audit F7, 2026-09-23).
+  const build = spawnSync("npm", ["run", "build"], { cwd: ROOT, encoding: "utf8" });
+  if (build.status !== 0) throw new Error(`npm run build failed:\n${build.stdout}${build.stderr}`);
   previewProc = spawn("npx", ["vite", "preview", "--port", String(PREVIEW_PORT), "--strictPort"], {
     cwd: ROOT,
     stdio: "pipe",
@@ -199,6 +203,9 @@ test("a genuinely-unknown field (sample-3's usage%/reset timer) renders an expli
     assert.ok(chipTexts.includes("UNKNOWN"), `expected an UNKNOWN chip among ${JSON.stringify(chipTexts)}`);
     const usageRowText = await corner.$$eval(".field-row", (rows) => rows.find((r) => r.textContent?.includes("usage"))?.textContent ?? "");
     assert.match(usageRowText, /UNKNOWN/, `usage field row should carry the UNKNOWN chip, got: ${usageRowText}`);
+    // The title names the reset timer too; before audit F6 it was never rendered or checked.
+    const resetRowText = await corner.$$eval(".field-row", (rows) => rows.find((r) => r.querySelector(".label")?.textContent === "resets")?.textContent ?? "");
+    assert.match(resetRowText, /UNKNOWN/, `reset-timer field row should carry the UNKNOWN chip, got: ${JSON.stringify(resetRowText)}`);
   } finally {
     await page.close();
   }
@@ -222,6 +229,104 @@ test("assigning a session_id to the empty corner moves it out of 'no session ass
     const afterText = await page.$eval('[data-corner="3"]', (el) => el.textContent || "");
     assert.doesNotMatch(afterText, /no session assigned/, "corner should no longer show the empty-slot placeholder");
     assert.match(afterText, /no snapshot yet/, "a registered session with no data yet should say so explicitly, not render blank");
+  } finally {
+    await page.close();
+  }
+});
+
+// ---- Live path, with Tauri's IPC mocked in the page (no real webview in this suite). ----
+// The mock records the zofia://snapshot listener's callback so a test can fire a snapshot
+// event exactly as the Rust watcher would; every other invoke resolves to null.
+const TAURI_MOCK = () => {
+  const callbacks = {};
+  let nextId = 1;
+  window.__zofiaTest = { callbacks, snapshotHandler: null };
+  window.__TAURI_INTERNALS__ = {
+    transformCallback: (cb) => {
+      const id = nextId++;
+      callbacks[id] = cb;
+      return id;
+    },
+    invoke: async (cmd, args) => {
+      if (cmd === "plugin:event|listen" && args.event === "zofia://snapshot") window.__zofiaTest.snapshotHandler = args.handler;
+      return null;
+    },
+  };
+};
+
+async function newLivePageAt(width, height) {
+  const page = await browser.newPage({ viewport: { width, height } });
+  await page.addInitScript(TAURI_MOCK);
+  await page.goto(BASE_URL);
+  await page.waitForSelector("#shell");
+  await page.waitForFunction(() => window.__zofiaTest.snapshotHandler !== null);
+  return page;
+}
+
+function liveSnapshot(sessionId, overrides = {}) {
+  const f = (value, availability = "exposed") => ({ value, availability, source: "e2e", observed_at: 1790000000 });
+  return {
+    session_id: sessionId,
+    model: f({ id: "claude-sonnet-5", display_name: "Sonnet 5" }),
+    effort: f("medium"),
+    usagePercent: f(40),
+    resetTimer: f(1790003600),
+    contextPercent: f(12),
+    activityState: f("idle", "approximable"),
+    durationLine: f(null, "unknown"),
+    tokenSpend: { usd: f(0.5), tokens: f({ input_tokens: 10, output_tokens: 2 }, "approximable") },
+    lastActiveTime: f(1790000000),
+    ...overrides,
+  };
+}
+
+async function fireSnapshot(page, snapshot) {
+  await page.evaluate((snap) => {
+    const t = window.__zofiaTest;
+    t.callbacks[t.snapshotHandler]({ event: "zofia://snapshot", id: 1, payload: { session_id: snap.session_id, snapshot: snap } });
+  }, snapshot);
+}
+
+// Audit F5, 2026-09-23: every snapshot re-render used to wipe a half-typed session_id
+// and drop focus to <body>.
+test("a snapshot re-render keeps text typed into another corner's assign box, and its focus", async () => {
+  const page = await newLivePageAt(1280, 800);
+  try {
+    await page.fill('[aria-label="Assign a session to corner 1"]', "sess-A");
+    await page.press('[aria-label="Assign a session to corner 1"]', "Enter");
+    await page.click('[aria-label="Assign a session to corner 2"]');
+    await page.keyboard.type("sess-B-half");
+
+    await fireSnapshot(page, liveSnapshot("sess-A"));
+
+    await page.waitForSelector('[data-corner="0"] .full-card .field-row');
+    assert.equal(await page.inputValue('[aria-label="Assign a session to corner 2"]'), "sess-B-half");
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")), "Assign a session to corner 2");
+    await page.keyboard.type("-rest");
+    assert.equal(await page.inputValue('[aria-label="Assign a session to corner 2"]'), "sess-B-half-rest", "caret stays at the end");
+  } finally {
+    await page.close();
+  }
+});
+
+// Audit F6, 2026-09-23: the owner's spec names the reset timer and last-active time; the
+// duration line is confirmed unknown for a corner and must say so, not vanish.
+test("corner cards render reset timer, last-active time and the duration line with availability chips", async () => {
+  const page = await newLivePageAt(1280, 800);
+  try {
+    await page.fill('[aria-label="Assign a session to corner 1"]', "sess-A");
+    await page.press('[aria-label="Assign a session to corner 1"]', "Enter");
+    await fireSnapshot(page, liveSnapshot("sess-A"));
+    await page.waitForSelector('[data-corner="0"] .full-card .field-row');
+
+    const rows = await page.$$eval('[data-corner="0"] .full-card .field-row', (els) =>
+      Object.fromEntries(els.map((r) => [r.querySelector(".label")?.textContent, r.querySelector(".availability-chip")?.textContent]))
+    );
+    assert.equal(rows["resets"], "measured");
+    assert.equal(rows["last active"], "measured");
+    assert.equal(rows["duration"], "UNKNOWN");
+    const resetText = await page.$$eval('[data-corner="0"] .field-row', (els) => els.find((r) => r.querySelector(".label")?.textContent === "resets")?.textContent ?? "");
+    assert.match(resetText, /\d{2}:\d{2}:\d{2}/, `expected a clock time, got ${JSON.stringify(resetText)}`);
   } finally {
     await page.close();
   }

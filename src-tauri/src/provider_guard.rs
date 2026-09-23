@@ -10,8 +10,6 @@ mod generated {
     include!("generated/providers.rs");
 }
 
-pub use generated::{DEFAULT_MODEL, MODEL_IDS};
-
 #[derive(Debug, PartialEq, Eq)]
 pub enum ModelRejection {
     Empty,
@@ -82,6 +80,7 @@ pub fn check_model(input: &str) -> Result<String, ModelRejection> {
 
 #[cfg(test)]
 mod tests {
+    use super::generated::{DEFAULT_MODEL, MODEL_IDS};
     use super::*;
 
     #[test]

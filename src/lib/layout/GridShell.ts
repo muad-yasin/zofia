@@ -30,6 +30,13 @@ function fmtPct(f: Field<number>): string {
   return `${f.value.toFixed(0)}%`;
 }
 
+/** Unix epoch seconds -> local wall-clock time. Absolute on purpose: a relative "Ns ago"
+ * would go stale between re-renders and read as a measurement it no longer is. */
+function fmtClock(f: Field<number>): string {
+  if (f.availability === "unknown" || f.value === null) return "—";
+  return new Date(f.value * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
 /**
  * Renders the fixed top-bar + four-corner + center shell (PLAN.md §4) into `root`.
  * Corner panes render `SessionSnapshot` state cards only — never terminal bytes; a GUI
@@ -208,6 +215,17 @@ export class GridShell {
   }
 
   private renderCorners(visible: { session: RegisteredSession | null; cornerIndex: CornerIndex | null }[]): void {
+    // Snapshot events re-render every corner, so carry over what the owner is in the
+    // middle of: text typed into an assign box, and which corner element had focus
+    // (audit F5, 2026-09-23 — each statusline update used to wipe both).
+    const typed = new Map<string, { value: string; start: number | null; end: number | null }>();
+    this.cornerGridEl.querySelectorAll<HTMLInputElement>(".assign-form input").forEach((input) => {
+      if (input.dataset.slot) typed.set(input.dataset.slot, { value: input.value, start: input.selectionStart, end: input.selectionEnd });
+    });
+    const active = document.activeElement as HTMLElement | null;
+    const focusedCorner = active && this.cornerGridEl.contains(active) ? active.closest<HTMLElement>(".corner")?.dataset.corner : undefined;
+    const focusedRole = active?.tagName === "INPUT" ? "input" : active?.tagName === "BUTTON" ? "button" : "corner";
+
     this.resizeObserver.disconnect();
     this.cornerGridEl.innerHTML = "";
     visible.forEach(({ session, cornerIndex }, i) => {
@@ -225,6 +243,17 @@ export class GridShell {
 
       this.cornerGridEl.append(el);
       this.resizeObserver.observe(el, { box: "border-box" });
+
+      const input = el.querySelector<HTMLInputElement>(".assign-form input");
+      const kept = input?.dataset.slot ? typed.get(input.dataset.slot) : undefined;
+      if (input && kept) {
+        input.value = kept.value;
+        if (kept.start !== null) input.setSelectionRange(kept.start, kept.end ?? kept.start);
+      }
+      if (focusedCorner === String(i)) {
+        const target = focusedRole === "input" ? input : focusedRole === "button" ? el.querySelector<HTMLElement>(".assign-form button") : el;
+        (target ?? el).focus({ preventScroll: true });
+      }
     });
   }
 
@@ -245,6 +274,7 @@ export class GridShell {
     input.type = "text";
     input.placeholder = "session_id";
     input.setAttribute("aria-label", `Assign a session to corner ${cornerIndex + 1}`);
+    input.dataset.slot = String(cornerIndex);
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = "Assign";
@@ -280,8 +310,11 @@ export class GridShell {
       this.fieldRow("model", snap.model.value?.display_name ?? "—", snap.model.availability),
       this.fieldRow("effort", snap.effort.value ?? "—", snap.effort.availability),
       this.fieldRow("usage", fmtPct(snap.usagePercent), snap.usagePercent.availability),
+      this.fieldRow("resets", fmtClock(snap.resetTimer), snap.resetTimer.availability),
       this.fieldRow("context", fmtPct(snap.contextPercent), snap.contextPercent.availability),
       this.fieldRow("activity", snap.activityState.value ?? "—", snap.activityState.availability),
+      this.fieldRow("last active", fmtClock(snap.lastActiveTime), snap.lastActiveTime.availability),
+      this.fieldRow("duration", snap.durationLine.value ?? "—", snap.durationLine.availability),
       this.fieldRow("spend", snap.tokenSpend.usd.value != null ? `$${snap.tokenSpend.usd.value.toFixed(2)}` : "—", snap.tokenSpend.usd.availability)
     );
     return wrap;
