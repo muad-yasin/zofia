@@ -11,9 +11,9 @@
 // claudeCodeSubprocess.js) — that file spawns a headless, non-interactive `claude -p ...
 // --output-format stream-json` subprocess per turn, not a PTY, so only the safety
 // patterns carry over, not the mechanism, and not verbatim (see PtySeat::stop's own doc
-// comment for a real deviation found while testing this against the mock). TERM is added
-// to the allowlist (Sophi-A's own list doesn't have it) because a real interactive
-// terminal child needs it; Sophi-A's model never rendered a terminal at all.
+// comment for a real deviation found while testing this against the mock). TERM is set
+// explicitly rather than passed through (Sophi-A's model never rendered a terminal): the
+// seat's terminal is always xterm.js, whatever launched the GUI (audit 2026-09-23 #4).
 
 use crate::hash_sweep::{self, Fingerprint};
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
@@ -28,10 +28,16 @@ const KILL_ESCALATION_MS: u64 = 5_000; // matches Sophi-A's own KILL_ESCALATION_
 // XDG_RUNTIME_DIR and DBUS_SESSION_BUS_ADDRESS: without them the child's per-user runtime
 // files fall back to shared /tmp and a keyring-backed credential store can't be reached.
 // Both are what the owner's own terminals already pass (DECISIONS.md, 2026-09-23).
-const SAFE_ENV_KEYS: [&str; 12] = [
-    "PATH", "HOME", "LANG", "LC_ALL", "TERM", "TMPDIR", "TMP", "TEMP", "USER", "SHELL",
+const SAFE_ENV_KEYS: [&str; 11] = [
+    "PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "TMP", "TEMP", "USER", "SHELL",
     "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS",
 ];
+
+/// What the child is told about its terminal. The PTY's other end is always the webview's
+/// xterm.js, so this is fixed, never inherited: launched from a desktop entry or the
+/// AppImage the GUI has no TERM at all (the seat rendered monochrome), and launched from
+/// a terminal it had that terminal's TERM (e.g. xterm-kitty), which xterm.js is not.
+const SEAT_TERM: [(&str, &str); 2] = [("TERM", "xterm-256color"), ("COLORTERM", "truecolor")];
 
 pub struct PtySeat {
     master: Mutex<Box<dyn portable_pty::MasterPty + Send>>,
@@ -46,22 +52,36 @@ pub struct PtySeat {
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ForeignSettingsInfo {
     pub settings_json: Option<String>,
+    pub settings_local_json: Option<String>,
     pub mcp_json: Option<String>,
 }
 
-/// Pure, side-effect-free: does `workdir` contain its own `.claude/settings.json` or
-/// `.mcp.json`? PLAN.md §3: "Foreign project settings are not silently inherited ...
-/// shows the owner that file's permission/MCP entries and requires confirmation before
-/// launch." Returns `None` if neither exists — nothing to confirm.
+/// The file's contents for the confirmation dialog if anything exists at `path`, `None`
+/// only if nothing does. Presence decides, never readability (audit 2026-09-23 #3): a
+/// file with one invalid UTF-8 byte, or one we can't read, is still a file Claude Code may
+/// load, so it's shown (lossily, or as a note) rather than treated as absent.
+fn foreign_file(path: &Path) -> Option<String> {
+    std::fs::symlink_metadata(path).ok()?;
+    Some(match std::fs::read(path) {
+        Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+        Err(e) => format!("(present but unreadable: {e})"),
+    })
+}
+
+/// Pure, side-effect-free: does `workdir` contain its own `.claude/settings.json`,
+/// `.claude/settings.local.json` or `.mcp.json`? PLAN.md §3: "Foreign project settings are
+/// not silently inherited ... shows the owner that file's permission/MCP entries and
+/// requires confirmation before launch." Returns `None` if none exists.
 pub fn detect_foreign_settings(workdir: &Path) -> Option<ForeignSettingsInfo> {
-    let settings_path = workdir.join(".claude").join("settings.json");
-    let mcp_path = workdir.join(".mcp.json");
-    let settings_json = std::fs::read_to_string(&settings_path).ok();
-    let mcp_json = std::fs::read_to_string(&mcp_path).ok();
-    if settings_json.is_none() && mcp_json.is_none() {
+    let info = ForeignSettingsInfo {
+        settings_json: foreign_file(&workdir.join(".claude").join("settings.json")),
+        settings_local_json: foreign_file(&workdir.join(".claude").join("settings.local.json")),
+        mcp_json: foreign_file(&workdir.join(".mcp.json")),
+    };
+    if info.settings_json.is_none() && info.settings_local_json.is_none() && info.mcp_json.is_none() {
         return None;
     }
-    Some(ForeignSettingsInfo { settings_json, mcp_json })
+    Some(info)
 }
 
 fn safe_env() -> Vec<(String, String)> {
@@ -83,6 +103,9 @@ pub fn spawn(command: &str, args: &[&str], workdir: &Path) -> Result<(PtySeat, B
     cmd.cwd(workdir);
     cmd.env_clear();
     for (k, v) in safe_env() {
+        cmd.env(k, v);
+    }
+    for (k, v) in SEAT_TERM {
         cmd.env(k, v);
     }
 
@@ -140,9 +163,16 @@ impl PtySeat {
 
     /// Re-sweeps the workdir's sensitive paths (`hash_sweep::SENSITIVE_PATHS`) against
     /// the baseline captured at spawn time; returns the paths that changed, if any.
+    #[cfg_attr(not(test), allow(dead_code))] // center_resweep uses sweep_inputs, off the lock
     pub fn resweep(&self) -> Vec<&'static str> {
         let current = hash_sweep::sweep(&self.workdir);
         hash_sweep::changed_paths(&self.baseline, &current)
+    }
+
+    /// What a resweep needs, cloned, so a caller can run the (possibly slow) sweep without
+    /// holding the seat's lock (audit 2026-09-23 #6: it ran on the GUI main thread).
+    pub fn sweep_inputs(&self) -> (PathBuf, Fingerprint) {
+        (self.workdir.clone(), self.baseline.clone())
     }
 
     /// Stops the owned seat's whole process group, escalating, then confirms the leader
@@ -422,6 +452,34 @@ mod tests {
         assert_eq!(changed, vec!["CLAUDE.md"]);
 
         seat.stop(CENTER_SEAT_SESSION_ID).ok();
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn the_child_always_gets_xterm_256color_whatever_launched_the_gui() {
+        // Whatever this test process's own TERM is (unset under a desktop launcher, the
+        // outer terminal's otherwise), the seat's child sees the fixed pair.
+        let (seat, reader) =
+            spawn("sh", &["-c", "echo TERM=$TERM COLORTERM=$COLORTERM; sleep 5"], Path::new("/tmp")).expect("spawn");
+        let rx = spawn_reader_channel(reader);
+        let out = read_until(&rx, "COLORTERM=", 4096);
+        assert!(out.contains("TERM=xterm-256color COLORTERM=truecolor"), "got: {out}");
+        seat.stop(CENTER_SEAT_SESSION_ID).ok();
+    }
+
+    #[test]
+    fn settings_local_json_and_an_invalid_utf8_settings_file_both_need_confirmation() {
+        let dir = std::env::temp_dir().join(format!("zofia-foreign-local-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join(".claude")).unwrap();
+        std::fs::write(dir.join(".claude/settings.local.json"), r#"{"permissions":{"allow":["Bash(*)"]}}"#).unwrap();
+        let info = detect_foreign_settings(&dir).expect("settings.local.json alone must count");
+        assert!(info.settings_local_json.unwrap().contains("Bash(*)"));
+
+        std::fs::remove_file(dir.join(".claude/settings.local.json")).unwrap();
+        std::fs::write(dir.join(".claude/settings.json"), b"{\"permissions\":{\"allow\":[\"Bash(*)\"]},\"x\":\"\xff\"}").unwrap();
+        let info = detect_foreign_settings(&dir).expect("an invalid-UTF-8 file is still present");
+        assert!(info.settings_json.unwrap().contains("Bash(*)"), "shown lossily, not dropped");
         std::fs::remove_dir_all(&dir).ok();
     }
 

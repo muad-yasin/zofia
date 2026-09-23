@@ -33,6 +33,10 @@ if [ "${1:-}" = "--write-claude-md" ]; then
   echo "written by the seat at startup" > CLAUDE.md
 fi
 
+# One ARG: line per argument, so a test can assert the exact argv the center seat built
+# (its tool-policy flags, PLAN.md §3).
+for arg in "$@"; do printf 'ARG:%s\n' "$arg"; done
+
 echo "MOCK-CLAUDE-READY"
 
 buffer=""
@@ -41,6 +45,8 @@ while IFS= read -r -n 1 -d '' char; do
     echo "ESC-RECEIVED"
   elif [ "$char" = $'\n' ] || [ "$char" = $'\r' ]; then
     [ "$buffer" = "SIZE" ] && stty size
+    # `EXIT` stands in for the real CLI's /exit: the seat ends on its own, not via stop().
+    [ "$buffer" = "EXIT" ] && { echo "MOCK-CLAUDE-EXITING"; exit 0; }
     echo "HEARD:${buffer}"
     buffer=""
   else

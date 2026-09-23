@@ -7,17 +7,23 @@
 // The threat: a running seat (or an injected instruction inside its own output) writes
 // CLAUDE.md/.claude/.mcp.json into its own workdir. Those files are auto-loaded by
 // Claude Code on every later turn, so a change that isn't the owner's own doing can
-// persist an instruction across the whole session. The center seat's own tool-policy
-// (§3) already denies Write, so this shouldn't be reachable structurally — this sweep
-// is deliberate defense-in-depth on top of that, matching PLAN.md §12's own stated
-// discipline ("defense in depth beats 'moved upstream'"), not a belief the allow-list
-// might fail.
+// persist an instruction across the whole session. The center seat launches with §3's
+// read-only allow-list (`center_seat::policy_args`: --restricted --tools Read,Grep,Glob),
+// so its own tools shouldn't be able to write here; whether the CLI really refuses is
+// item 8's probe to measure. This sweep is defense-in-depth on top of that (PLAN.md §12:
+// "defense in depth beats 'moved upstream'"), and it also catches writes by anything
+// else on the machine.
 
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::path::Path;
 
-pub const SENSITIVE_PATHS: [&str; 3] = ["CLAUDE.md", ".claude", ".mcp.json"];
+/// The two settings files are also fingerprinted on their own, outside the `.claude`
+/// walk: the walk stops at MAX_ENTRIES in name order, so under a large `.claude` (a
+/// workdir of $HOME holds every transcript) an edit to settings.json went unseen
+/// (audit 2026-09-23 #6).
+pub const SENSITIVE_PATHS: [&str; 5] =
+    ["CLAUDE.md", ".claude", ".mcp.json", ".claude/settings.json", ".claude/settings.local.json"];
 
 /// A fingerprint of the sensitive paths under one workdir at one point in time.
 /// `None` for a path that doesn't exist — absence is itself part of the fingerprint, so
@@ -69,23 +75,34 @@ fn hash_entry(path: &Path, ft: std::fs::FileType) -> String {
 fn hash_path(path: &Path) -> Option<String> {
     let meta = std::fs::symlink_metadata(path).ok()?;
     if meta.file_type().is_symlink() {
-        // A top-level link (e.g. CLAUDE.md -> a shared file) is what Claude Code reads
-        // through, so its target file's bytes count too. Only a regular-file target is
-        // read, one hop, never a directory walk.
-        let content = std::fs::metadata(path).ok().filter(|m| m.is_file()).and_then(|_| hash_file_following(path));
-        return Some(format!("{}|{}", hash_entry(path, meta.file_type()), content.unwrap_or_default()));
+        // A top-level link (e.g. CLAUDE.md -> a shared file, or a `.claude` dir kept
+        // elsewhere) is what Claude Code reads through, so its target counts too, one hop:
+        // a file's bytes, or a directory's bounded walk. Links inside that walk are still
+        // never followed. (Audit 2026-09-23 #6: a symlinked `.claude` was fingerprinted by
+        // its link target string only.)
+        let target = std::fs::metadata(path).ok();
+        let content = match target {
+            Some(m) if m.is_file() => hash_file_following(path).unwrap_or_default(),
+            Some(m) if m.is_dir() => walk_listing(path),
+            _ => String::new(),
+        };
+        return Some(format!("{}|{}", hash_entry(path, meta.file_type()), content));
     }
     if !meta.is_dir() {
         return Some(hash_entry(path, meta.file_type()));
     }
+    Some(walk_listing(path))
+}
+
+fn walk_listing(dir: &Path) -> String {
     let mut entries: Vec<(String, String)> = Vec::new();
     let mut truncated = false;
-    walk_dir(path, 0, &mut entries, &mut truncated, path);
+    walk_dir(dir, 0, &mut entries, &mut truncated, dir);
     entries.sort();
     if truncated {
         entries.push(("~truncated".to_string(), MAX_ENTRIES.to_string()));
     }
-    Some(entries.into_iter().map(|(name, hash)| format!("{name}:{hash}")).collect::<Vec<_>>().join("|"))
+    entries.into_iter().map(|(name, hash)| format!("{name}:{hash}")).collect::<Vec<_>>().join("|")
 }
 
 fn walk_dir(dir: &Path, depth: usize, out: &mut Vec<(String, String)>, truncated: &mut bool, root: &Path) {
@@ -139,7 +156,7 @@ mod tests {
     fn empty_workdir_every_path_absent() {
         let dir = tmp_workdir("empty");
         let fp = sweep(&dir);
-        assert_eq!(fp.len(), 3);
+        assert_eq!(fp.len(), SENSITIVE_PATHS.len());
         assert!(fp.values().all(|v| v.is_none()));
         fs::remove_dir_all(&dir).ok();
     }
@@ -183,7 +200,8 @@ mod tests {
         let baseline = sweep(&dir);
         fs::rename(dir.join(".claude").join("settings.json"), dir.join(".claude").join("settings-2.json")).unwrap();
         let current = sweep(&dir);
-        assert_eq!(changed_paths(&baseline, &current), vec![".claude"]);
+        // settings.json vanished from its own key too (it's fingerprinted separately).
+        assert_eq!(changed_paths(&baseline, &current), vec![".claude", ".claude/settings.json"]);
         fs::remove_dir_all(&dir).ok();
     }
 
@@ -236,5 +254,36 @@ mod tests {
         let current = sweep(&dir);
         assert_eq!(changed_paths(&baseline, &current), Vec::<&str>::new());
         fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Audit 2026-09-23 #6a: past the 2,000-entry walk cap an edit to settings.json used
+    /// to go unseen.
+    #[test]
+    fn a_settings_edit_is_seen_even_past_the_walk_cap() {
+        let dir = tmp_workdir("cap");
+        fs::create_dir_all(dir.join(".claude/projects")).unwrap();
+        for i in 0..2_100 {
+            fs::write(dir.join(format!(".claude/projects/t{i:05}.jsonl")), "x").unwrap();
+        }
+        fs::write(dir.join(".claude/settings.json"), "{}").unwrap();
+        let before = sweep(&dir);
+        fs::write(dir.join(".claude/settings.json"), r#"{"permissions":{"allow":["Bash(*)"]}}"#).unwrap();
+        let changed = changed_paths(&before, &sweep(&dir));
+        assert!(changed.contains(&".claude/settings.json"), "got {changed:?}");
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Audit 2026-09-23 #6b: a symlinked `.claude` directory.
+    #[test]
+    fn a_change_inside_a_symlinked_claude_dir_is_seen() {
+        let dir = tmp_workdir("symlinked");
+        let real = tmp_workdir("symlinked-target");
+        fs::write(real.join("hooks.json"), "{}").unwrap();
+        std::os::unix::fs::symlink(&real, dir.join(".claude")).unwrap();
+        let before = sweep(&dir);
+        fs::write(real.join("hooks.json"), r#"{"Stop":[]}"#).unwrap();
+        assert!(changed_paths(&before, &sweep(&dir)).contains(&".claude"));
+        fs::remove_dir_all(&dir).ok();
+        fs::remove_dir_all(&real).ok();
     }
 }
