@@ -343,3 +343,17 @@ all. The smoke baseline, rebuilt with `a9b6a29`, is 9/9 on both launch paths.
 **Not done:** a mutation build (without the ticker) to prove the stale/ended checks
 would fail. **Still unproven by design:** OS-level key delivery. WebKitWebDriver can't
 send real keys here; input enters through xterm's own input event.
+
+## 2026-09-23 — item 6, zero-egress acceptance run (Zofia builder, for C&C thcmcp-31)
+
+**Done: PASS.** 600s against the AppImage in the clean Fedora 44 image under Xvfb
+(`test/appimage/run-egress.sh`), with mock corner activity the whole time. The whole PID
+tree made zero non-loopback attempts. Report: `docs/EGRESS-AUDIT-2026-09-23.md`. The
+real-strace positive control now runs and passes. Two harness defects found and fixed
+first: the window never ended (strace ignored the stop signal), and a run with no mock
+activity passed.
+
+**Not done:** §2.3's second leg, the real center-seat child's provider traffic attributed
+to its own PID. It needs the real `claude` (item 8). The mock seat wasn't launched during
+the window (see the report).
+

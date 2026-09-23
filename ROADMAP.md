@@ -27,10 +27,9 @@ closed items 7 and 9 and its share of the item 1-3 audit fixes (#2-#9 in
 5. ✅ **First AppImage build** (§6) — `064659a`. The clean-image smoke passes 9/9 on
    both FUSE and extract-and-run. Declared: Fedora 44 x86_64 only
    (`packaging/linux-support.md`). Signature verification waits on the owner's key.
-6. ⏳ **Zero-egress audit** (§2.3) — harness and tests built by zofia-26 (`12565ee`). The
-   acceptance run against the AppImage waits on `strace` being installed (owner) and
-   on item 5 closing. Deferred 2026-09-23 (owner can't install it tonight). No
-   workaround: no custom tracer, no downloaded binaries.
+6. ✅ **Zero-egress audit** (§2.3) — harness `12565ee`. Acceptance run 2026-09-23: PASS,
+   600s, zero non-loopback attempts from the AppImage's tree (`docs/EGRESS-AUDIT-2026-09-23.md`).
+   The real center-seat child's attributed leg is item 8's.
 7. ✅ **Provider/effort config** (§5) — `50ced01` (schema, generator, stale lint) and
    `cc09e9a` (runtime guard). Default effort = Medium (owner decision 7); the
    measured levels and launch key are still `UNKNOWN`.

@@ -70,10 +70,10 @@ function fakeStraceDir() {
   writeFileSync(f, `#!/usr/bin/env bash
 out=""; while [ "$1" != "--" ]; do [ "$1" = "-o" ] && out="$2"; shift; done; shift
 echo "1 10:00:00.1 execve(\\"/fake/$(basename "$1")\\", [], 0x0) = 0" > "$out"
-"$@"
-if [ -n "$FAKE_BAD" ]; then
+if [ -n "$FAKE_BAD" ]; then  # written up front: the runner TERMs this stand-in at window end
   echo '1 10:00:00.2 connect(3, {sa_family=AF_INET, sin_port=htons(443), sin_addr=inet_addr("203.0.113.9")}, 16) = -1 ENETUNREACH' >> "$out"
 fi
+"$@"
 `);
   chmodSync(f, 0o755);
   return bin;
@@ -133,6 +133,16 @@ test('real strace: a grandchild egress attempt fails the run, attributed to its 
   const clean = audit(['--duration', '3', '--allow-early-exit', '--', ...cmd]);
   assert.equal(clean.status, 0, clean.stdout + clean.stderr);
   assert.ok(existsSync(join(clean.out, 'trace.txt')));
+});
+
+// Item 6 acceptance run, 2026-09-23: kill -INT never reached strace (a background job
+// ignores SIGINT), so a command outliving the window hung the run forever.
+test('real strace: a command that outlives the window is stopped when the window ends', { skip: hasStrace ? false : 'strace not installed (sudo dnf install strace)' }, () => {
+  const started = Date.now();
+  const r = audit(['--duration', '3', '--', 'sleep', '300']);
+  assert.equal(r.error, undefined, 'the run hung past its window');
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.ok(Date.now() - started < 30000);
 });
 
 // Item 6 audit #1, 2026-09-23: Fedora resolves through resolved's unix socket first.

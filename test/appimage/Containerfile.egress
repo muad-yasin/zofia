@@ -1,0 +1,7 @@
+# HANDOFF item 6 / PLAN.md §2.3 zero-egress audit image: the clean smoke image plus the three
+# tools scripts/egress-audit.sh needs (strace, ip, jq). Build the smoke image first, then:
+#   podman build -t zofia-appimage-egress -f test/appimage/Containerfile.egress test/appimage
+FROM localhost/zofia-appimage-smoke
+USER root
+RUN dnf -y install --setopt=install_weak_deps=False strace iproute jq && dnf clean all
+USER tester

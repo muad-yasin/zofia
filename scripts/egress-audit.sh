@@ -41,7 +41,7 @@ if [ "$duration" -lt 600 ] && [ "$self_test" -eq 0 ]; then
   exit 2
 fi
 [ $# -gt 0 ] || { echo "usage: egress-audit.sh [--duration S] [--out DIR] [--allow-exe P]... -- CMD..." >&2; exit 2; }
-for tool in strace unshare ip; do
+for tool in strace unshare ip jq; do  # jq: the shim scripts behind the mock activity
   command -v "$tool" >/dev/null || { echo "egress-audit: '$tool' is not installed (Fedora: sudo dnf install $tool)" >&2; exit 2; }
 done
 
@@ -79,13 +79,17 @@ set +e
 unshare --user --map-root-user --net --pid --fork --mount-proc bash -c '
   ip link set lo up || { echo "egress-audit: could not bring up loopback" >&2; exit 2; }
   exec unshare --user --map-user='"$uid"' --map-group='"$gid"' bash -c '"'"'
-    ZOFIA_SESSIONS_DIR="$sessions" strace -f -tt -s 256 -e trace=connect,sendto,sendmsg,sendmmsg,execve,clone,clone3,fork,vfork -o "$trace" -- "$@" &
+    ZOFIA_SESSIONS_DIR="$sessions" strace -I 1 -f -tt -s 256 -e trace=connect,sendto,sendmsg,sendmmsg,execve,clone,clone3,fork,vfork -o "$trace" -- "$@" &
     tracer=$!
     mock_activity & mock=$!
     sleep "$duration"
     kill -0 "$tracer" 2>/dev/null || touch "$trace.exited-early"
     kill "$mock" 2>/dev/null
-    kill -INT "$tracer" 2>/dev/null   # strace detaches and flushes the trace on SIGINT
+    # TERM, and strace -I 1: bash starts a background job with SIGINT ignored, and
+    # strace given -o FILE PROG blocks fatal signals by default (-I 3), so the old
+    # kill -INT never stopped it and the run hung past its window. PID 1 exiting below
+    # kills the detached tree.
+    kill -TERM "$tracer" 2>/dev/null  # strace detaches and flushes the trace
     wait "$tracer" 2>/dev/null
     exit 0
   '"'"' _ "$@"
@@ -99,4 +103,8 @@ if [ -e "$trace.exited-early" ] && [ "$allow_early_exit" -eq 0 ]; then
   echo "egress-audit: INCONCLUSIVE, the command exited before ${duration}s were up (a crashed app trivially sends nothing). See $trace." >&2
   exit 2
 fi
+# §2.3 asks for mock corner activity; a window with none proves less than it claims.
+for s in mock-a mock-b; do
+  [ -s "$sessions/$s.json" ] || { echo "egress-audit: INCONCLUSIVE, no mock activity reached $sessions/$s.json (the shim scripts failed)" >&2; exit 2; }
+done
 node "$REPO/scripts/egress-parse.mjs" "$trace" "${allow[@]}"

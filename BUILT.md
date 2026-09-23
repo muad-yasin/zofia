@@ -71,3 +71,7 @@ id(s) it serves (HANDOFF.md's own "files to keep current while building" rule).
 - 2026-09-23 — Real-window gap tests (PLAN.md §2.1/§3/§4): `e08caa7`
   `test/appimage/live-gaps.mjs`, `run-live.sh`. 12/12.
 - 2026-09-23 — Reader LOWs: `01846de` (flock -w 2, 0600 non-piling backups).
+- 2026-09-23 — Zero-egress acceptance run (PLAN.md §2.3, HANDOFF item 6; DEEPSEEKV4PRO-2):
+  PASS, `docs/EGRESS-AUDIT-2026-09-23.md`. Harness fixes (strace -I 1 + TERM, no-mock =
+  INCONCLUSIVE) and the container runner `test/appimage/run-egress.sh`. test:egress 12/12.
+

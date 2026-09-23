@@ -20,7 +20,8 @@
     "build:appimage": "NO_STRIP=true tauri build --bundles appimage",
     "test:appimage": "test/appimage/run-clean.sh",
     "test:probe": "node --test test/probe/*.test.mjs",
-    "test:appimage-live": "test/appimage/run-live.sh"
+    "test:appimage-live": "test/appimage/run-live.sh",
+    "test:appimage-egress": "test/appimage/run-egress.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

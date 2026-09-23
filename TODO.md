@@ -14,14 +14,12 @@ describing yesterday is the failure mode this exists to fix. Long narrative belo
 
 ## PRIORITY NOW
 
-**2026-09-23, two builders.** zofia-8b: items 4 and 5 done (`43fc8f9`, `064659a`), audit
-#1/#10 done (`327b48d`). It waits for C&C's next assignment. zofia-26 (live-window tests
-on zofia-8b's `test/appimage/` harness, the confirm-digest change):
-items 7 and 9 done, audit #2-#9 fixed, Rust reader parses per field (`43c3704`),
-item 6 harness built (`12565ee`). Item 6's real run waits only on `strace` now. **Waiting on the owner:** his
-go to re-run the shim installer so the new `UserPromptSubmit` hook (#4) is live. And
-`sudo dnf install strace` (item 6's audit traces syscalls with it; nothing else here
-needs root).
+**2026-09-23 afternoon.** HANDOFF items 1-7 and 9 are done. Item 6's acceptance run
+PASSED (`docs/EGRESS-AUDIT-2026-09-23.md`). Owner decisions 1 (his ToS read) and 2
+(effort Medium) are recorded in `DECISIONS.md`. **Item 8 waits on one owner step:**
+creating the clearance file (`docs/ITEM-8-CHECKLIST.md`). Item 5's signature waits on
+his key. After any Rust change, rebuild the AppImage (`npm run build:appimage`) before
+the next container run.
 
 ---
 
