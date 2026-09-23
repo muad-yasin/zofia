@@ -543,3 +543,22 @@ decision 2: effort default = Medium".
   then. `crossCheck` requires the default to be one of the default model's measured
   levels once they exist, so a later measurement can't silently drop it.
 
+## 2026-09-23 — OWNER DECISION 1: his own ToS read (item 8 gate, first half)
+
+**Muad's words, relayed by C&C (thcmcp-31), not typed into this session:** *"always a
+human giving the C&C session instructions ... this is 'ordinary, individual usage' ... I
+think this concept is OK to proceed"*. This is his reading of Anthropic's consumer terms.
+Nothing in this repo interprets them for him (PLAN.md §10 decision 1), and no session
+checked his reading.
+
+- **What it closes:** the "read the terms himself" half of item 8's gate
+  (`docs/ITEM-8-CHECKLIST.md` step 1, and the decision in step 2).
+- **What it doesn't:** the clearance file `~/.config/zofia/item8-owner-clearance` is still
+  his to create by hand (checklist step 2). No session creates it, and no session has run
+  the real `claude` for Zofia. `scripts/tool-policy-probe.mjs` refuses the real CLI until
+  that file exists, so item 8 stays blocked on that one step of his.
+- **The premise it rests on** is his own: a human always gives the C&C seat its
+  instructions. That fits the current design. The seat sends only what the owner types,
+  and the corners are read-only. Any future feature that sends input into a session
+  without a human typing it would fall outside this reading. It would need his go again.
+

@@ -34,8 +34,8 @@ closed items 7 and 9 and its share of the item 1-3 audit fixes (#2-#9 in
 7. ✅ **Provider/effort config** (§5) — `50ced01` (schema, generator, stale lint) and
    `cc09e9a` (runtime guard). Default effort = Medium (owner decision 7); the
    measured levels and launch key are still `UNKNOWN`.
-8. Blocked — **Real-subscription center-seat testing**, blocked on owner decision 1
-   below (his own ToS read).
+8. Blocked — **Real-subscription center-seat testing**. His ToS read is done (decision 1
+   below). It now waits only on the clearance file he creates by hand.
 9. ✅ **Scope-ledger lint** (added 2026-09-22 by C&C) — `69e561c`. Warns on three
    ledger-only ids in PLAN.md; see `DECISIONS.md`.
 
@@ -59,8 +59,9 @@ session must never do"; `PLAN.md` §9.2).
 
 ## Owner decisions gating progress (`PLAN.md` §10, numbered as there)
 
-1. Not done — **Read Anthropic's ToS himself.** Gates item 8 only; item 4 can build and
-   close fully against the mock without this.
+1. ✅ **Read Anthropic's ToS himself** — 2026-09-23, relayed by C&C: "ordinary,
+   individual usage ... OK to proceed" (`DECISIONS.md`). Item 8 still waits on the
+   clearance file he creates himself (`docs/ITEM-8-CHECKLIST.md`).
 2. ✅ **Confirm the statusline-shim install doesn't conflict with his setup** — done
    2026-09-22, install applied and independently verified safe.
 3. Not done — **Measure his actual screen.** Replaces §4's placeholder

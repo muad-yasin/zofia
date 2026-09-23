@@ -31,9 +31,9 @@ needs root).
    signature verifies before launch"). This is the one open part of item 5. No key has
    been generated. It's his key and his choice of tool (e.g. GPG or minisign).
 
-1. **Read Anthropic's current consumer ToS himself** — gates real-subscription
-   center-seat testing (item 8) only. Doesn't block item 4, which closes fully against a
-   mock.
+1. **Create the item 8 clearance file himself** (`docs/ITEM-8-CHECKLIST.md` step 2).
+   His ToS read is done (2026-09-23, relayed by C&C; see `DECISIONS.md`). The file is the
+   last gate before the real-subscription center-seat probe. No session may create it.
 2. **Measure his actual screen** — replaces §4's placeholder breakpoint/pane-floor pixel
    values with real ones. Not urgent; the shell already works and is tested against the
    placeholders.

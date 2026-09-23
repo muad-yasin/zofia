@@ -30,3 +30,7 @@ across the owner's projects. One dated entry per item; never rewritten once arch
   Medium as the default"*. `config/providers.json` `default_effort: medium`, with detail in
   `DECISIONS.md`. The per-model levels and the CLI effort key stay `UNKNOWN` until
   measured, so no launch applies it yet.
+- **Owner decision 1, his own ToS read.** Muad, relayed by C&C (thcmcp-31): *"always a
+  human giving the C&C session instructions ... this is 'ordinary, individual usage' ...
+  I think this concept is OK to proceed"*. Details in `DECISIONS.md`. Item 8 still waits
+  on the clearance file only he creates (TODO "Waiting on the owner" 1).
