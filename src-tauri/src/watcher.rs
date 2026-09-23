@@ -66,6 +66,14 @@ pub fn register_session(app: AppHandle, session_id: String) -> Result<(), String
     Ok(())
 }
 
+/// "Clear all": stop deriving (and so reading) every registered session's state until the
+/// owner assigns one again (PLAN.md §2.1: only registered sessions are read).
+#[tauri::command]
+pub fn unregister_all_sessions(app: AppHandle) -> Result<(), String> {
+    app.state::<RegisteredSessions>().0.lock().map_err(|e| e.to_string())?.clear();
+    Ok(())
+}
+
 /// Starts the debounced watch over the sessions directory. Safe to call even if the
 /// directory doesn't exist yet (shim not installed, or nothing observed this boot) —
 /// creates it so the watch has something to attach to; a session registered later still

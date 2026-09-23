@@ -38,4 +38,6 @@ export interface RegisteredSession {
   /** Registration is always explicit (PLAN.md §2.1) — set by the owner, never inferred. */
   label: string;
   snapshot: SessionSnapshot | null;
+  /** Replayed from this boot's saved assignments at launch, not assigned in this run. */
+  restored?: boolean;
 }

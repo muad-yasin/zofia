@@ -237,10 +237,10 @@ test("assigning a session_id to the empty corner moves it out of 'no session ass
 // ---- Live path, with Tauri's IPC mocked in the page (no real webview in this suite). ----
 // The mock records the zofia://snapshot listener's callback so a test can fire a snapshot
 // event exactly as the Rust watcher would; every other invoke resolves to null.
-const TAURI_MOCK = () => {
+const TAURI_MOCK = (responses = {}) => {
   const callbacks = {};
   let nextId = 1;
-  window.__zofiaTest = { callbacks, snapshotHandler: null };
+  window.__zofiaTest = { callbacks, snapshotHandler: null, calls: [] };
   window.__TAURI_INTERNALS__ = {
     transformCallback: (cb) => {
       const id = nextId++;
@@ -248,15 +248,17 @@ const TAURI_MOCK = () => {
       return id;
     },
     invoke: async (cmd, args) => {
+      window.__zofiaTest.calls.push([cmd, args]);
       if (cmd === "plugin:event|listen" && args.event === "zofia://snapshot") window.__zofiaTest.snapshotHandler = args.handler;
+      if (cmd === "assignments_get") return responses.assignments_get ?? [];
       return null;
     },
   };
 };
 
-async function newLivePageAt(width, height) {
+async function newLivePageAt(width, height, responses = {}) {
   const page = await browser.newPage({ viewport: { width, height } });
-  await page.addInitScript(TAURI_MOCK);
+  await page.addInitScript(TAURI_MOCK, responses);
   await page.goto(BASE_URL);
   await page.waitForSelector("#shell");
   await page.waitForFunction(() => window.__zofiaTest.snapshotHandler !== null);
@@ -327,6 +329,41 @@ test("corner cards render reset timer, last-active time and the duration line wi
     assert.equal(rows["duration"], "UNKNOWN");
     const resetText = await page.$$eval('[data-corner="0"] .field-row', (els) => els.find((r) => r.querySelector(".label")?.textContent === "resets")?.textContent ?? "");
     assert.match(resetText, /\d{2}:\d{2}:\d{2}/, `expected a clock time, got ${JSON.stringify(resetText)}`);
+  } finally {
+    await page.close();
+  }
+});
+
+// Owner decision 2026-09-23, option B: saved assignments come back marked "restored",
+// are registered with Rust, and "Clear all corners" forgets them.
+test("saved assignments are restored, marked, and cleared by Clear all", async () => {
+  const saved = [
+    { corner: 1, session_id: "sess-R1", label: "repo R1", assigned_at: 1 },
+    { corner: 3, session_id: "sess-R3", label: "repo R3", assigned_at: 1 },
+  ];
+  const page = await newLivePageAt(1280, 800, { assignments_get: saved });
+  try {
+    await page.waitForSelector('[data-corner="1"] .restored-chip');
+    assert.match(await page.textContent('[data-corner="1"] h2'), /repo R1\s+restored/);
+    assert.match(await page.textContent('[data-corner="3"] h2'), /repo R3/);
+    assert.ok(await page.$('[data-corner="0"] .assign-form'), "unsaved corners stay empty");
+    const registered = await page.evaluate(() => window.__zofiaTest.calls.filter(([c]) => c === "register_session").map(([, a]) => a.sessionId));
+    assert.deepEqual(registered, ["sess-R1", "sess-R3"]);
+    assert.equal(await page.$(".wiring-error"), null, "no error banner");
+
+    // A new assignment is saved and isn't marked restored.
+    await page.fill('[aria-label="Assign a session to corner 1"]', "sess-new");
+    await page.press('[aria-label="Assign a session to corner 1"]', "Enter");
+    await page.waitForSelector('[data-corner="0"] h2');
+    assert.equal(await page.$('[data-corner="0"] .restored-chip'), null);
+    const setCall = await page.evaluate(() => window.__zofiaTest.calls.find(([c]) => c === "assignment_set")?.[1]);
+    assert.deepEqual(setCall, { corner: 0, sessionId: "sess-new", label: "sess-new" });
+
+    await page.click(".clear-all");
+    await page.waitForFunction(() => document.querySelectorAll(".assign-form").length === 4);
+    const after = await page.evaluate(() => window.__zofiaTest.calls.map(([c]) => c));
+    assert.ok(after.includes("assignments_clear") && after.includes("unregister_all_sessions"), JSON.stringify(after));
+    assert.equal(await page.$eval(".clear-all", (b) => b.disabled), true, "nothing left to clear");
   } finally {
     await page.close();
   }

@@ -3,6 +3,7 @@ import { PaneRegistry } from "./lib/layout/paneRegistry.js";
 import { SAMPLE_SESSIONS } from "./lib/layout/sampleData.js";
 import { mountCenterSeat } from "./lib/center/centerSeat.js";
 import { isTauriRuntime, listenForLiveSnapshots, registerLiveSession } from "./lib/reader/liveWiring.js";
+import { clearAssignments, loadAssignments, saveAssignment } from "./lib/reader/assignments.js";
 import type { CornerIndex } from "./lib/layout/types.js";
 
 const registry = new PaneRegistry();
@@ -29,19 +30,42 @@ const onAssignSession = (corner: CornerIndex, sessionId: string) => {
   registry.registerToCorner(corner, { sessionId, label: sessionId, snapshot: null });
   shell.refresh();
   void registerLiveSession(sessionId);
+  saveAssignment(corner, sessionId, sessionId).catch(reportWiringError("Saving the corner assignment"));
 };
 
-shell = new GridShell(root, registry, onAssignSession);
+// Option B: forget every saved assignment and stop reading those sessions.
+const onClearAll = () => {
+  registry.clearAll();
+  shell.refresh();
+  clearAssignments().catch(reportWiringError("Clearing the corner assignments"));
+};
+
+shell = new GridShell(root, registry, onAssignSession, isTauriRuntime() ? onClearAll : undefined);
 // A rejected wiring call (e.g. the capability ACL refusing `listen`) must be visible, not
 // swallowed: before audit #1 the corners silently sat at "no snapshot yet" forever.
-const reportWiringError = (what: string) => (err: unknown) => {
-  console.error(`[zofia] ${what} failed`, err);
-  const banner = document.createElement("p");
-  banner.className = "wiring-error";
-  banner.setAttribute("role", "alert");
-  banner.textContent = `${what} failed: ${String(err)}`;
-  root.prepend(banner);
-};
-listenForLiveSnapshots(registry, shell).catch(reportWiringError("Live snapshot wiring"));
+function reportWiringError(what: string) {
+  return (err: unknown) => {
+    console.error(`[zofia] ${what} failed`, err);
+    const banner = document.createElement("p");
+    banner.className = "wiring-error";
+    banner.setAttribute("role", "alert");
+    banner.textContent = `${what} failed: ${String(err)}`;
+    root!.prepend(banner);
+  };
+}
+
+// Restore this boot's saved assignments (option B) only once the snapshot listener is
+// attached, so the snapshot register_session emits right away isn't missed.
+async function restoreAssignments(): Promise<void> {
+  for (const a of await loadAssignments()) {
+    registry.registerToCorner(a.corner, { sessionId: a.session_id, label: a.label, snapshot: null, restored: true });
+    await registerLiveSession(a.session_id);
+  }
+  shell.refresh();
+}
+
+listenForLiveSnapshots(registry, shell)
+  .then(() => restoreAssignments().catch(reportWiringError("Restoring corner assignments")))
+  .catch(reportWiringError("Live snapshot wiring"));
 const centerBody = root.querySelector<HTMLElement>("#center-pane .center-body");
 if (centerBody) mountCenterSeat(centerBody).catch(reportWiringError("Center seat wiring"));

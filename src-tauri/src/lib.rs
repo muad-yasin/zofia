@@ -4,8 +4,10 @@
 // `reader/` CLI without bundling a Node runtime — see session_reader.rs's own header),
 // `watcher` feeds derived snapshots to the frontend over Tauri's own authenticated event
 // transport. Item 4 adds the owned center seat: `pty_seat` (PTY + ownership checks) and
-// `center_seat` (its Tauri commands and the item 8 gate on the real CLI).
+// `center_seat` (its Tauri commands and the item 8 gate on the real CLI). `assignments`
+// keeps corner assignments across a GUI restart, until reboot (owner decision, option B).
 
+mod assignments;
 mod center_seat;
 mod hash_sweep;
 mod provider_guard;
@@ -24,6 +26,10 @@ pub fn run() {
         .manage(center_seat::CenterSeat::default())
         .invoke_handler(tauri::generate_handler![
             watcher::register_session,
+            watcher::unregister_all_sessions,
+            assignments::assignments_get,
+            assignments::assignment_set,
+            assignments::assignments_clear,
             center_seat::center_preflight,
             center_seat::center_spawn,
             center_seat::center_write,

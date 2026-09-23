@@ -27,6 +27,12 @@ export class PaneRegistry {
     this.overflow = this.overflow.filter((s) => s.sessionId !== sessionId);
   }
 
+  /** "Clear all": every corner empty, no overflow. */
+  clearAll(): void {
+    this.corners = [null, null, null, null];
+    this.overflow = [];
+  }
+
   updateSnapshot(sessionId: string, snapshot: SessionSnapshot): void {
     for (let i = 0; i < this.corners.length; i++) {
       if (this.corners[i]?.sessionId === sessionId) this.corners[i] = { ...this.corners[i]!, snapshot };

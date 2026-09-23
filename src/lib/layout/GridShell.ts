@@ -60,7 +60,14 @@ export class GridShell {
   private centerMinimized = false;
   private centerDrag: { dx: number; dy: number } | null = null;
 
-  constructor(root: HTMLElement, registry: PaneRegistry, private onAssignSession?: (corner: CornerIndex, sessionId: string) => void) {
+  private clearAllBtn: HTMLButtonElement | null = null;
+
+  constructor(
+    root: HTMLElement,
+    registry: PaneRegistry,
+    private onAssignSession?: (corner: CornerIndex, sessionId: string) => void,
+    private onClearAll?: () => void,
+  ) {
     this.root = root;
     this.registry = registry;
     this.breakpoint = breakpointFor(window.innerWidth);
@@ -83,7 +90,19 @@ export class GridShell {
     minimizeBtn.type = "button";
     minimizeBtn.textContent = "Toggle center seat";
     minimizeBtn.addEventListener("click", () => this.toggleCenterMinimized());
-    topbar.append(h1, spacer, minimizeBtn);
+    topbar.append(h1, spacer);
+    // Option B (DECISIONS.md, 2026-09-23): assignments come back after a restart, so there
+    // is a one-click way to forget them all.
+    if (this.onClearAll) {
+      const clearBtn = document.createElement("button");
+      clearBtn.type = "button";
+      clearBtn.className = "clear-all";
+      clearBtn.textContent = "Clear all corners";
+      clearBtn.addEventListener("click", () => this.onClearAll?.());
+      this.clearAllBtn = clearBtn;
+      topbar.append(clearBtn);
+    }
+    topbar.append(minimizeBtn);
 
     const shell = document.createElement("main");
     shell.id = "shell";
@@ -210,6 +229,7 @@ export class GridShell {
     this.shellEl.dataset.windowSize = String(showTabStrip ? windowSize : 4);
     this.tabStripEl.hidden = !showTabStrip;
 
+    if (this.clearAllBtn) this.clearAllBtn.disabled = this.registry.getAllTabEntries().length === 0;
     this.renderCorners(visible);
     if (showTabStrip) this.renderTabStrip(entries);
   }
@@ -298,6 +318,13 @@ export class GridShell {
     wrap.className = "full-card";
     const h2 = document.createElement("h2");
     h2.textContent = session.label;
+    if (session.restored) {
+      const tag = document.createElement("span");
+      tag.className = "restored-chip";
+      tag.textContent = "restored";
+      tag.title = "Assigned earlier this boot and restored at launch; Clear all corners forgets it";
+      h2.append(" ", tag);
+    }
     wrap.append(h2);
 
     const snap = session.snapshot;
