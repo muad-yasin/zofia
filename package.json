@@ -14,7 +14,9 @@
     "test": "node --test test/e2e/*.test.mjs",
     "test:config": "node --test test/config/*.test.mjs",
     "test:lint": "node --test test/lint/*.test.mjs",
-    "lint:ledger": "node scripts/check-scope-ledger.mjs"
+    "lint:ledger": "node scripts/check-scope-ledger.mjs",
+    "test:egress": "node --test test/egress/*.test.mjs",
+    "audit:egress": "bash scripts/egress-audit.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

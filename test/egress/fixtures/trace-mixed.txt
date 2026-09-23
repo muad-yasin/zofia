@@ -1,0 +1,16 @@
+100 10:00:00.000001 execve("/opt/zofia/zofia", ["zofia"], 0x7ffd /* 30 vars */) = 0
+100 10:00:00.000100 connect(3, {sa_family=AF_UNIX, sun_path="/run/user/1000/wayland-0"}, 110) = 0
+100 10:00:00.000200 socket(AF_NETLINK, SOCK_RAW, 0) = 4
+100 10:00:00.000300 sendto(4, [{nlmsg_len=20}], 20, 0, {sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, 12) = 20
+100 10:00:00.000400 connect(5, {sa_family=AF_INET, sin_port=htons(1420), sin_addr=inet_addr("127.0.0.1")}, 16) = 0
+100 10:00:00.000500 connect(6, {sa_family=AF_INET6, sin6_port=htons(8080), sin6_flowinfo=htonl(0), inet_pton(AF_INET6, "::1", &sin6_addr), sin6_scope_id=0}, 28) = 0
+100 10:00:00.000600 connect(6, {sa_family=AF_INET6, sin6_port=htons(8080), sin6_flowinfo=htonl(0), inet_pton(AF_INET6, "::ffff:127.0.0.1", &sin6_addr), sin6_scope_id=0}, 28) = 0
+101 10:00:00.001000 execve("/usr/bin/nothere", ["nothere"], 0x1 /* 1 var */) = -1 ENOENT (No such file or directory)
+101 10:00:00.001100 execve("/usr/libexec/webkit2gtk-4.1/WebKitNetworkProcess", ["x"], 0x1 /* 1 var */) = 0
+101 10:00:00.001200 sendto(7, "\1\2", 2, MSG_NOSIGNAL, {sa_family=AF_INET, sin_port=htons(53), sin_addr=inet_addr("127.0.0.53")}, 16) = -1 ECONNREFUSED (Connection refused)
+101 10:00:00.001300 connect(8, {sa_family=AF_INET, sin_port=htons(443), sin_addr=inet_addr("203.0.113.9")}, 16 <unfinished ...>
+101 10:00:00.001400 <... connect resumed>) = -1 ENETUNREACH (Network is unreachable)
+102 10:00:00.002000 execve("/home/u/.local/bin/claude", ["claude"], 0x1 /* 1 var */) = 0
+102 10:00:00.002100 sendmsg(9, {msg_name={sa_family=AF_INET6, sin6_port=htons(443), sin6_flowinfo=htonl(0), inet_pton(AF_INET6, "2001:db8::1", &sin6_addr), sin6_scope_id=0}, msg_namelen=28, msg_iov=[{iov_base="x", iov_len=1}], msg_iovlen=1, msg_controllen=0, msg_flags=0}, 0) = -1 ENETUNREACH (Network is unreachable)
+103 10:00:00.003000 connect(10, {sa_family=AF_PACKET, sll_protocol=htons(ETH_P_ALL)}, 20) = 0
+100 10:00:00.004000 +++ exited with 0 +++
