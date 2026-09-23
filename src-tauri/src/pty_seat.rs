@@ -15,11 +15,11 @@
 // explicitly rather than passed through (Sophi-A's model never rendered a terminal): the
 // seat's terminal is always xterm.js, whatever launched the GUI (audit 2026-09-23 #4).
 
-use crate::hash_sweep::{self, Fingerprint};
+use crate::hash_sweep::{self, Fingerprint, SweepCache};
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 pub const CENTER_SEAT_SESSION_ID: &str = "center-seat";
@@ -45,6 +45,8 @@ pub struct PtySeat {
     child: Mutex<Box<dyn portable_pty::Child + Send + Sync>>,
     baseline: Fingerprint,
     workdir: PathBuf,
+    /// Shared with each resweep so only changed files are re-read (hash_sweep::SweepCache).
+    sweep_cache: Arc<Mutex<SweepCache>>,
     #[cfg_attr(not(test), allow(dead_code))]
     pid: Option<u32>,
 }
@@ -111,7 +113,8 @@ pub fn spawn(command: &str, args: &[&str], workdir: &Path) -> Result<(PtySeat, B
 
     // Baseline first: a child that writes CLAUDE.md in its first milliseconds must show up
     // as a change, not be folded into the baseline.
-    let baseline = hash_sweep::sweep(workdir);
+    let mut cache = SweepCache::default();
+    let baseline = hash_sweep::sweep_cached(workdir, &mut cache);
     let child = pair.slave.spawn_command(cmd).map_err(|e| format!("failed to spawn {command}: {e}"))?;
     let pid = child.process_id();
 
@@ -129,6 +132,7 @@ pub fn spawn(command: &str, args: &[&str], workdir: &Path) -> Result<(PtySeat, B
         child: Mutex::new(child),
         baseline,
         workdir: workdir.to_path_buf(),
+        sweep_cache: Arc::new(Mutex::new(cache)),
         pid,
     };
     Ok((seat, reader))
@@ -165,14 +169,14 @@ impl PtySeat {
     /// the baseline captured at spawn time; returns the paths that changed, if any.
     #[cfg_attr(not(test), allow(dead_code))] // center_resweep uses sweep_inputs, off the lock
     pub fn resweep(&self) -> Vec<&'static str> {
-        let current = hash_sweep::sweep(&self.workdir);
-        hash_sweep::changed_paths(&self.baseline, &current)
+        let (workdir, baseline, cache) = self.sweep_inputs();
+        resweep_with(&workdir, &baseline, &cache)
     }
 
     /// What a resweep needs, cloned, so a caller can run the (possibly slow) sweep without
     /// holding the seat's lock (audit 2026-09-23 #6: it ran on the GUI main thread).
-    pub fn sweep_inputs(&self) -> (PathBuf, Fingerprint) {
-        (self.workdir.clone(), self.baseline.clone())
+    pub fn sweep_inputs(&self) -> (PathBuf, Fingerprint, Arc<Mutex<SweepCache>>) {
+        (self.workdir.clone(), self.baseline.clone(), self.sweep_cache.clone())
     }
 
     /// Stops the owned seat's whole process group, escalating, then confirms the leader
@@ -205,6 +209,12 @@ impl PtySeat {
         }
         Err("center seat process survived SIGKILL escalation".to_string())
     }
+}
+
+/// The paths changed since `baseline`, re-hashing only files the cache says changed.
+pub fn resweep_with(workdir: &Path, baseline: &Fingerprint, cache: &Mutex<SweepCache>) -> Vec<&'static str> {
+    let mut cache = cache.lock().unwrap_or_else(|e| e.into_inner());
+    hash_sweep::changed_paths(baseline, &hash_sweep::sweep_cached(workdir, &mut cache))
 }
 
 fn signal_group(pgid: i32, sig: libc::c_int) {

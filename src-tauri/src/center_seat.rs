@@ -211,10 +211,8 @@ pub fn center_stop(seat: State<'_, CenterSeat>, session_id: String) -> Result<()
 #[tauri::command]
 pub async fn center_resweep(seat: State<'_, CenterSeat>) -> Result<Vec<&'static str>, String> {
     let inputs = seat.0.lock().map_err(|e| e.to_string())?.as_ref().map(|pty| pty.sweep_inputs());
-    let Some((workdir, baseline)) = inputs else { return Ok(Vec::new()) };
-    tauri::async_runtime::spawn_blocking(move || {
-        crate::hash_sweep::changed_paths(&baseline, &crate::hash_sweep::sweep(&workdir))
-    })
+    let Some((workdir, baseline, cache)) = inputs else { return Ok(Vec::new()) };
+    tauri::async_runtime::spawn_blocking(move || pty_seat::resweep_with(&workdir, &baseline, &cache))
     .await
     .map_err(|e| e.to_string())
 }

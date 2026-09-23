@@ -15,8 +15,8 @@
 // else on the machine.
 
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
-use std::path::Path;
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::path::{Path, PathBuf};
 
 /// The two settings files are also fingerprinted on their own, outside the `.claude`
 /// walk: the walk stops at MAX_ENTRIES in name order, so under a large `.claude` (a
@@ -35,34 +35,70 @@ pub type Fingerprint = BTreeMap<&'static str, Option<String>>;
 /// `truncated` marker instead of reading more, so it stays deterministic.
 const MAX_DEPTH: usize = 8;
 const MAX_ENTRIES: usize = 2_000;
-const MAX_HASHED_BYTES: u64 = 1 << 20; // larger files are fingerprinted by size + mtime
+const MAX_HASHED_BYTES: u64 = 1 << 20; // larger files are fingerprinted by their stat key
 
-fn hash_file(path: &Path) -> Option<String> {
-    let meta = std::fs::symlink_metadata(path).ok()?;
-    if meta.len() > MAX_HASHED_BYTES {
-        let mtime = meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok());
-        return Some(format!("large:{}:{:?}", meta.len(), mtime));
-    }
-    let bytes = std::fs::read(path).ok()?;
-    Some(format!("{:x}", Sha256::digest(&bytes)))
+/// Everything the kernel changes when a file's content could have changed: a write moves
+/// mtime *and* ctime, and resetting mtime afterwards (utimensat, `touch -d`) moves ctime
+/// again. ctime can't be set back without root or a clock change, so an unchanged key
+/// means unchanged content in practice (audit follow-up 2026-09-23: re-hashing ~70 MiB
+/// every 5s with workdir = $HOME). dev+ino catch a file replaced by another.
+type StatKey = (u64, u64, u64, i64, i64, i64, i64);
+
+fn stat_key(m: &std::fs::Metadata) -> StatKey {
+    use std::os::unix::fs::MetadataExt;
+    (m.dev(), m.ino(), m.size(), m.mtime(), m.mtime_nsec(), m.ctime(), m.ctime_nsec())
 }
 
-fn hash_file_following(path: &Path) -> Option<String> {
-    let meta = std::fs::metadata(path).ok()?;
-    if meta.len() > MAX_HASHED_BYTES {
-        return Some(format!("large:{}", meta.len()));
+/// Memory-only (hashes, never content), one per seat. Entries not seen in a sweep are
+/// dropped at its end, so the cache never outgrows the current tree.
+#[derive(Default)]
+pub struct SweepCache {
+    hashes: HashMap<PathBuf, (StatKey, String)>,
+    seen: HashSet<PathBuf>,
+    /// Files actually read and hashed by the last sweep (cache misses), for tests.
+    pub hashed_last_sweep: usize,
+}
+
+impl SweepCache {
+    /// The stat key is taken *before* reading, so a write racing the read leaves a stale
+    /// key behind and the next sweep re-hashes.
+    fn file_hash(&mut self, path: &Path, meta: &std::fs::Metadata) -> Option<String> {
+        let key = stat_key(meta);
+        self.seen.insert(path.to_path_buf());
+        if let Some((k, h)) = self.hashes.get(path) {
+            if *k == key {
+                return Some(h.clone());
+            }
+        }
+        let h = if meta.len() > MAX_HASHED_BYTES {
+            format!("large:{key:?}")
+        } else {
+            self.hashed_last_sweep += 1;
+            format!("{:x}", Sha256::digest(&std::fs::read(path).ok()?))
+        };
+        self.hashes.insert(path.to_path_buf(), (key, h.clone()));
+        Some(h)
     }
-    Some(format!("{:x}", Sha256::digest(&std::fs::read(path).ok()?)))
+}
+
+fn hash_file(path: &Path, cache: &mut SweepCache) -> Option<String> {
+    let meta = std::fs::symlink_metadata(path).ok()?;
+    cache.file_hash(path, &meta)
+}
+
+fn hash_file_following(path: &Path, cache: &mut SweepCache) -> Option<String> {
+    let meta = std::fs::metadata(path).ok()?;
+    cache.file_hash(path, &meta)
 }
 
 /// A symlink is fingerprinted by its target string and never followed, so a link loop or
 /// a link out of the workdir can't make the sweep read beyond it.
-fn hash_entry(path: &Path, ft: std::fs::FileType) -> String {
+fn hash_entry(path: &Path, ft: std::fs::FileType, cache: &mut SweepCache) -> String {
     if ft.is_symlink() {
         let target = std::fs::read_link(path).map(|t| t.to_string_lossy().to_string()).unwrap_or_default();
         format!("symlink:{target}")
     } else if ft.is_file() {
-        hash_file(path).unwrap_or_else(|| "unreadable".to_string())
+        hash_file(path, cache).unwrap_or_else(|| "unreadable".to_string())
     } else {
         "dir".to_string()
     }
@@ -72,7 +108,7 @@ fn hash_entry(path: &Path, ft: std::fs::FileType) -> String {
 /// sorted `name:hash` listing of every entry inside it (recursively, bounded), so a rename
 /// or a moved/added/removed file changes the fingerprint even if no single file's own
 /// bytes did.
-fn hash_path(path: &Path) -> Option<String> {
+fn hash_path(path: &Path, cache: &mut SweepCache) -> Option<String> {
     let meta = std::fs::symlink_metadata(path).ok()?;
     if meta.file_type().is_symlink() {
         // A top-level link (e.g. CLAUDE.md -> a shared file, or a `.claude` dir kept
@@ -82,22 +118,22 @@ fn hash_path(path: &Path) -> Option<String> {
         // its link target string only.)
         let target = std::fs::metadata(path).ok();
         let content = match target {
-            Some(m) if m.is_file() => hash_file_following(path).unwrap_or_default(),
-            Some(m) if m.is_dir() => walk_listing(path),
+            Some(m) if m.is_file() => hash_file_following(path, cache).unwrap_or_default(),
+            Some(m) if m.is_dir() => walk_listing(path, cache),
             _ => String::new(),
         };
-        return Some(format!("{}|{}", hash_entry(path, meta.file_type()), content));
+        return Some(format!("{}|{}", hash_entry(path, meta.file_type(), cache), content));
     }
     if !meta.is_dir() {
-        return Some(hash_entry(path, meta.file_type()));
+        return Some(hash_entry(path, meta.file_type(), cache));
     }
-    Some(walk_listing(path))
+    Some(walk_listing(path, cache))
 }
 
-fn walk_listing(dir: &Path) -> String {
+fn walk_listing(dir: &Path, cache: &mut SweepCache) -> String {
     let mut entries: Vec<(String, String)> = Vec::new();
     let mut truncated = false;
-    walk_dir(dir, 0, &mut entries, &mut truncated, dir);
+    walk_dir(dir, 0, &mut entries, &mut truncated, dir, cache);
     entries.sort();
     if truncated {
         entries.push(("~truncated".to_string(), MAX_ENTRIES.to_string()));
@@ -105,7 +141,7 @@ fn walk_listing(dir: &Path) -> String {
     entries.into_iter().map(|(name, hash)| format!("{name}:{hash}")).collect::<Vec<_>>().join("|")
 }
 
-fn walk_dir(dir: &Path, depth: usize, out: &mut Vec<(String, String)>, truncated: &mut bool, root: &Path) {
+fn walk_dir(dir: &Path, depth: usize, out: &mut Vec<(String, String)>, truncated: &mut bool, root: &Path, cache: &mut SweepCache) {
     if depth > MAX_DEPTH {
         *truncated = true;
         return;
@@ -121,16 +157,28 @@ fn walk_dir(dir: &Path, depth: usize, out: &mut Vec<(String, String)>, truncated
         let path = entry.path();
         let Ok(ft) = entry.file_type() else { continue }; // does not follow symlinks
         let name = path.strip_prefix(root).unwrap_or(&path).to_string_lossy().to_string();
-        out.push((name, hash_entry(&path, ft)));
+        out.push((name, hash_entry(&path, ft, cache)));
         if ft.is_dir() {
-            walk_dir(&path, depth + 1, out, truncated, root);
+            walk_dir(&path, depth + 1, out, truncated, root, cache);
         }
     }
 }
 
-/// Fingerprints `CLAUDE.md`, `.claude`, `.mcp.json` under `workdir` right now.
+/// Fingerprints the sensitive paths under `workdir` right now, from scratch.
+#[cfg_attr(not(test), allow(dead_code))] // the seat always sweeps through its cache
 pub fn sweep(workdir: &Path) -> Fingerprint {
-    SENSITIVE_PATHS.iter().map(|&p| (p, hash_path(&workdir.join(p)))).collect()
+    sweep_cached(workdir, &mut SweepCache::default())
+}
+
+/// Same fingerprint as `sweep`, re-hashing only files whose stat key changed since the
+/// last sweep that used this cache.
+pub fn sweep_cached(workdir: &Path, cache: &mut SweepCache) -> Fingerprint {
+    cache.seen.clear();
+    cache.hashed_last_sweep = 0;
+    let fp = SENSITIVE_PATHS.iter().map(|&p| (p, hash_path(&workdir.join(p), cache))).collect();
+    let seen = std::mem::take(&mut cache.seen);
+    cache.hashes.retain(|p, _| seen.contains(p));
+    fp
 }
 
 /// Compares two fingerprints of the same workdir, returning the sensitive paths that
@@ -285,5 +333,47 @@ mod tests {
         assert!(changed_paths(&before, &sweep(&dir)).contains(&".claude"));
         fs::remove_dir_all(&dir).ok();
         fs::remove_dir_all(&real).ok();
+    }
+
+    /// C&C follow-up 2026-09-23: an unchanged tree is not re-read, but a same-size edit
+    /// whose mtime was put back afterwards is still caught (ctime moved).
+    #[test]
+    fn the_cache_skips_unchanged_files_but_catches_an_edit_with_mtime_reset() {
+        let dir = tmp_workdir("cache");
+        fs::create_dir_all(dir.join(".claude/projects")).unwrap();
+        for i in 0..50 {
+            fs::write(dir.join(format!(".claude/projects/t{i}.jsonl")), format!("line {i}")).unwrap();
+        }
+        let target = dir.join(".claude/projects/t7.jsonl");
+        let mut cache = SweepCache::default();
+        let baseline = sweep_cached(&dir, &mut cache);
+        assert!(cache.hashed_last_sweep >= 50);
+
+        assert_eq!(sweep_cached(&dir, &mut cache), baseline);
+        assert_eq!(cache.hashed_last_sweep, 0, "an unchanged tree was re-read");
+
+        let mtime = fs::metadata(&target).unwrap().modified().unwrap();
+        fs::write(&target, "LINE 7").unwrap(); // same length as "line 7"
+        fs::File::options().write(true).open(&target).unwrap().set_modified(mtime).unwrap();
+        assert_eq!(fs::metadata(&target).unwrap().modified().unwrap(), mtime, "mtime reset");
+        let after = sweep_cached(&dir, &mut cache);
+        assert_eq!(changed_paths(&baseline, &after), vec![".claude"]);
+        assert_eq!(cache.hashed_last_sweep, 1, "only the edited file is re-read");
+        // And the cached result equals a from-scratch sweep.
+        assert_eq!(after, sweep(&dir));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn the_cache_forgets_deleted_files() {
+        let dir = tmp_workdir("cache-prune");
+        fs::create_dir_all(dir.join(".claude")).unwrap();
+        fs::write(dir.join(".claude/a"), "a").unwrap();
+        let mut cache = SweepCache::default();
+        sweep_cached(&dir, &mut cache);
+        fs::remove_file(dir.join(".claude/a")).unwrap();
+        sweep_cached(&dir, &mut cache);
+        assert!(cache.hashes.keys().all(|p| !p.ends_with("a")));
+        fs::remove_dir_all(&dir).ok();
     }
 }
