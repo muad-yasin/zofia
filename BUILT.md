@@ -58,3 +58,6 @@ id(s) it serves (HANDOFF.md's own "files to keep current while building" rule).
 - 2026-09-23 — Zero-egress audit harness (PLAN.md §2.3, HANDOFF item 6;
   DEEPSEEKV4PRO-2): `12565ee` `scripts/egress-audit.sh`, `scripts/egress-parse.mjs`,
   `test/egress/`. 7 tests + 1 skipped until strace is installed.
+- 2026-09-23 — Item 4 audit fixes (PLAN.md §3; GPT6ASTRA-2, FABLE51-2): `2427f96`
+  tool-policy argv, content-based item 8 gate, self-exit reaping, TERM, settings gate,
+  sweep bounds/async. cargo test 64/64.

@@ -416,3 +416,21 @@ not the implementation.
   path contacted, for a person to review.
 - **Early exit is INCONCLUSIVE.** An app that crashes at startup sends nothing, and that
   must not read as a pass.
+
+## 2026-09-23 — item 4 audit fixes (zofia-26)
+
+- **The tool policy uses the CLI's own `--restricted`.** `claude --help` (2.1.280) says
+  it drops the code-running tools and WebFetch, ignores user/project/local settings
+  files, confines file tools to the workdir, and refuses `bypassPermissions`. That's
+  §3's "merged settings can't widen the policy" concern, handled by the vendor. `--tools
+  Read,Grep,Glob` is the allow-list, and `--strict-mcp-config` with no `--mcp-config`
+  means no MCP. Only `--help` was read; no session was started. The flags are
+  documented, not measured: `docs/cnc-tool-policy.md` stays item 8's probe output.
+- **The item 8 gate matches content, not path.** A path allow-list would break the
+  podman smoke image, which mounts the repo at `/zofia`. Comparing the file's bytes to
+  the compiled-in mock works anywhere, and a symlink or rename can't turn the real CLI
+  into "the mock". Known window: the file could change between the check and the exec.
+  That's acceptable for a pre-item-8 dev gate, and this note records it.
+- **The resweep's cost remains.** Moving it off the main thread and off the lock fixes the
+  freezes. With workdir = $HOME it still hashes ~70 MiB every 5s. Caching by mtime is a
+  possible follow-up, not done.

@@ -250,3 +250,22 @@ strace.
 AppImage. `strace` isn't installed (needs the owner's sudo), so the real-strace positive
 control skips too. The second §2.3 leg (the real center-seat child's provider traffic,
 attributed to its PID) waits on item 8; `--allow-exe` is built for it.
+
+## 2026-09-23 — item 4 audit fixes (zofia-26; `Review/BugAudit_Item4_CenterSeat_2026-09-23.md`)
+
+**Done (`2427f96`), cargo test 64/64:**
+- #1: the seat launches with §3's allow-list (`--restricted --tools Read,Grep,Glob
+  --strict-mcp-config`). A test asserts the argv the mock actually received.
+- #5: the item 8 gate accepts only the committed mock, by content.
+- #2: a seat that exits by itself is reaped and its slot freed.
+- #3: the settings gate covers `settings.local.json` and decides on presence, not
+  readability.
+- #4: `TERM` is always xterm-256color.
+- #6: the settings files are fingerprinted outside the capped walk, a symlinked
+  `.claude` is followed one hop, and the resweep runs async and off the lock.
+
+**Not verified:** whether the real CLI actually refuses each denied tool under these
+flags. That's §3's probe, which runs with item 8. The frontend doesn't show
+`settings_local_json` yet; that's zofia-8b's `centerSeat.ts`.
+**Backlog, unchanged:** the audit's blocking PTY write, the `setsid` escape, confirmation
+not tied to content, stop latency, and no `PR_SET_PDEATHSIG`.
