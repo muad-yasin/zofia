@@ -43,3 +43,9 @@ id(s) it serves (HANDOFF.md's own "files to keep current while building" rule).
 - 2026-09-23 — Scope-ledger lint (HANDOFF.md item 9, C&C addition; serves the Scope
   ledger itself, no single proposal id). `scripts/check-scope-ledger.mjs`,
   `test/lint/`. 6 tests. Commit `69e561c`.
+- 2026-09-23 — Audit fixes to item 1 (PLAN.md §2.1/§2.2; scope ledger GPT6ASTRA-1,
+  FABLE51-1, GLM53-1): `3e4f44d` shim top-level merge (#2); `d3868de`
+  `UserPromptSubmit` hook, re-install record merge, case-insensitive wrapper check
+  (#4, #8). Reader suite 39/39.
+- 2026-09-23 — Provider/effort config, part 2 (PLAN.md §5, FABLE51-3): `cc09e9a`
+  `provider_guard.rs` + its `lib.rs` line. cargo test 49/49.
