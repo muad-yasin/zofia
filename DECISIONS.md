@@ -358,3 +358,16 @@ not the implementation.
 - **#2: the merge is top-level `+`, not a per-key rule.** Each shim writer owns exactly
   one top-level key, so replacing whole keys is correct, and it also stops stale
   `cost.*`/`context_window.*` sub-fields, not just `five_hour`.
+- **The real-`claude` refusal is an accident guard, not a security boundary.** It
+  compares the command's basename only, so a wrapper script under another name gets
+  through. It exists so nobody launches the real CLI by mistake before item 8. The owner
+  sets `ZOFIA_CENTER_COMMAND` himself, and nothing here defends against him.
+- **`--model` goes through `provider_guard::check_model`** (item 7, `cc09e9a`) in
+  `center_spawn`. The resolved id is what gets launched, and the pane shows it.
+  No selection means no `--model` at all, and the pane shows "CLI default".
+- **Audit #1 and #10:** `src-tauri/capabilities/default.json` grants only
+  `core:event:default` to the `main` window. App commands need no grant, and each one
+  checks its own input in Rust. `withGlobalTauri` is off (the frontend imports
+  `@tauri-apps/api`), and the CSP went from `null` to `'self'` with inline styles
+  (xterm.js needs them) and the IPC origins. `main.ts` now shows a wiring failure as a
+  visible alert instead of `void`-ing it.

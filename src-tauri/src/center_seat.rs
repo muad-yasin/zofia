@@ -63,22 +63,38 @@ pub fn center_spawn(
     seat: State<'_, CenterSeat>,
     workdir: String,
     confirmed_foreign: bool,
-) -> Result<(), String> {
+    model: Option<String>,
+) -> Result<String, String> {
     let dir = Path::new(&workdir);
     if !dir.is_dir() {
         return Err(format!("not a directory: {workdir}"));
     }
     launch_gate(dir, confirmed_foreign)?;
     let command = resolve_command(std::env::var(CENTER_COMMAND_ENV).ok())?;
+    // PLAN.md §5: an xAI/Grok id is refused here at runtime, whatever the config said.
+    let args = model_args(model.as_deref())?;
 
     let mut slot = seat.0.lock().map_err(|e| e.to_string())?;
     if slot.is_some() {
         return Err("the center seat is already running".to_string());
     }
-    let (pty, reader) = pty_seat::spawn(&command, &[], dir)?;
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let (pty, reader) = pty_seat::spawn(&command, &arg_refs, dir)?;
     *slot = Some(pty);
     forward_output(app, reader);
-    Ok(())
+    // Returned so the pane shows the model the seat was actually launched with.
+    Ok(args.get(1).cloned().unwrap_or_else(|| "CLI default".to_string()))
+}
+
+/// `--model <resolved id>` for a selected model, nothing for none (the CLI's own default).
+fn model_args(model: Option<&str>) -> Result<Vec<String>, String> {
+    match model.map(str::trim).filter(|m| !m.is_empty()) {
+        None => Ok(Vec::new()),
+        Some(m) => {
+            let id = crate::provider_guard::check_model(m).map_err(|e| e.to_string())?;
+            Ok(vec!["--model".to_string(), id])
+        }
+    }
 }
 
 fn forward_output(app: AppHandle, mut reader: Box<dyn Read + Send>) {
@@ -169,6 +185,16 @@ mod tests {
         assert!(launch_gate(&dir, false).is_err());
         assert!(launch_gate(&dir, true).is_ok());
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn model_args_resolve_through_the_guard_and_refuse_grok() {
+        assert!(model_args(None).unwrap().is_empty());
+        assert!(model_args(Some("  ")).unwrap().is_empty());
+        let args = model_args(Some("sonnet")).unwrap();
+        assert_eq!(args[0], "--model");
+        assert!(model_args(Some("grok-4")).is_err());
+        assert!(model_args(Some("x-ai/grok-4")).is_err());
     }
 
     #[test]

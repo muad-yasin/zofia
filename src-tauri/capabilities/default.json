@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Main window: event listen/unlisten only. App commands (register_session, center_*) are allowed by default and do their own checks in Rust.",
+  "windows": ["main"],
+  "permissions": ["core:event:default"]
+}

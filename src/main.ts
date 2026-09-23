@@ -32,6 +32,16 @@ const onAssignSession = (corner: CornerIndex, sessionId: string) => {
 };
 
 shell = new GridShell(root, registry, onAssignSession);
-void listenForLiveSnapshots(registry, shell);
+// A rejected wiring call (e.g. the capability ACL refusing `listen`) must be visible, not
+// swallowed: before audit #1 the corners silently sat at "no snapshot yet" forever.
+const reportWiringError = (what: string) => (err: unknown) => {
+  console.error(`[zofia] ${what} failed`, err);
+  const banner = document.createElement("p");
+  banner.className = "wiring-error";
+  banner.setAttribute("role", "alert");
+  banner.textContent = `${what} failed: ${String(err)}`;
+  root.prepend(banner);
+};
+listenForLiveSnapshots(registry, shell).catch(reportWiringError("Live snapshot wiring"));
 const centerBody = root.querySelector<HTMLElement>("#center-pane .center-body");
-if (centerBody) void mountCenterSeat(centerBody);
+if (centerBody) mountCenterSeat(centerBody).catch(reportWiringError("Center seat wiring"));

@@ -41,6 +41,9 @@ export async function mountCenterSeat(body: HTMLElement): Promise<void> {
   launchBtn.textContent = "Launch";
   launcher.append(dirLabel, launchBtn);
 
+  const modelLine = document.createElement("p");
+  modelLine.className = "center-model";
+
   const notice = document.createElement("p");
   notice.className = "center-notice";
   notice.setAttribute("role", "status");
@@ -48,7 +51,7 @@ export async function mountCenterSeat(body: HTMLElement): Promise<void> {
   const termHost = document.createElement("div");
   termHost.className = "center-term";
 
-  body.append(launcher, notice, termHost);
+  body.append(launcher, modelLine, notice, termHost);
 
   const term = new Terminal({ convertEol: false, cursorBlink: true, scrollback: 5000 });
   const fit = new FitAddon();
@@ -87,9 +90,11 @@ export async function mountCenterSeat(body: HTMLElement): Promise<void> {
 
   const spawn = async (workdir: string, confirmedForeign: boolean) => {
     try {
-      await invoke("center_spawn", { workdir, confirmedForeign });
+      // No model picker yet (item 7's config feeds one later): null means the CLI default.
+      const model = await invoke<string>("center_spawn", { workdir, confirmedForeign, model: null });
       running = true;
       launcher.hidden = true;
+      modelLine.textContent = `Model: ${model}`;
       notice.textContent = "";
       notice.classList.remove("center-warning");
       await invoke("center_resize", { sessionId: CENTER_SEAT_SESSION_ID, rows: term.rows, cols: term.cols });
