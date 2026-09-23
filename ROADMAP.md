@@ -26,7 +26,9 @@ closed items 7 and 9 and its share of the item 1-3 audit fixes (#2-#9 in
    and the model-display check wait on items 8 and 7.
 5. Not started — **First AppImage build** (§6), independent, buildable any time after
    item 2.
-6. Not started — **Zero-egress audit** (§2.3), needs the full assembled shell.
+6. ⏳ **Zero-egress audit** (§2.3) — harness and tests built by zofia-26 (`12565ee`). The
+   acceptance run against the AppImage waits on `strace` being installed (owner) and
+   on item 5 closing.
 7. ✅ **Provider/effort config** (§5) — `50ced01` (schema, generator, stale lint) and
    `cc09e9a` (runtime guard). Effort values are `UNKNOWN` placeholders until owner
    decision 7 below.

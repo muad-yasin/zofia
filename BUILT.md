@@ -55,3 +55,6 @@ id(s) it serves (HANDOFF.md's own "files to keep current while building" rule).
   errors reported as such (#3, #9). e2e 12/12, cargo test 54/54.
 - 2026-09-23 — Rust reader per-field parsing (PLAN.md §2.2, GLM53-1): `43c3704`.
   cargo test 57/57.
+- 2026-09-23 — Zero-egress audit harness (PLAN.md §2.3, HANDOFF item 6;
+  DEEPSEEKV4PRO-2): `12565ee` `scripts/egress-audit.sh`, `scripts/egress-parse.mjs`,
+  `test/egress/`. 7 tests + 1 skipped until strace is installed.

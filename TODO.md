@@ -17,9 +17,11 @@ describing yesterday is the failure mode this exists to fix. Long narrative belo
 **2026-09-23, two builders.** zofia-8b: item 4 done (`43fc8f9`); next is audit #1 (missing
 `src-tauri/capabilities/`, so `listen` is rejected in a real window), then item 5 (first
 AppImage, whose real launch proves the live path), then item 6. zofia-26:
-items 7 and 9 done; every audit fix assigned to it (#2-#9) is pushed. Idle until C&C
-assigns more. **Waiting on the owner:** his
-go to re-run the shim installer so the new `UserPromptSubmit` hook (#4) is live.
+items 7 and 9 done, audit #2-#9 fixed, Rust reader parses per field (`43c3704`),
+item 6 harness built (`12565ee`). Item 6's real run waits on item 5 and on `strace`. **Waiting on the owner:** his
+go to re-run the shim installer so the new `UserPromptSubmit` hook (#4) is live. And
+`sudo dnf install strace` (item 6's audit traces syscalls with it; nothing else here
+needs root).
 
 ---
 

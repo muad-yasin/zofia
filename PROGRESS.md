@@ -236,3 +236,17 @@ symlink-safe bounded walk, baseline before spawn, process-group kill, env additi
 **Done (`43c3704`):** a mistyped value in a session state file now blanks only its own
 field, with a "present but mistyped" reason. The rest of the snapshot still renders.
 cargo test 57/57, including a mistyped-field fixture test.
+
+## 2026-09-23 — item 6, zero-egress audit: harness (zofia-26)
+
+**Done (`12565ee`):** `npm run audit:egress -- <cmd>` runs the command in an
+unprivileged user+net+pid namespace with only loopback, traces the whole process tree's
+socket syscalls with `strace -f` for 10 minutes, and writes mock corner activity. `npm
+run test:egress` gives 7/7: the classifier on a strace fixture, plus the runner's
+namespace, mock-activity, early-exit and verdict plumbing, driven through a stand-in
+strace.
+
+**Not done, and it's the actual acceptance test:** the 10-minute run against the
+AppImage. `strace` isn't installed (needs the owner's sudo), so the real-strace positive
+control skips too. The second §2.3 leg (the real center-seat child's provider traffic,
+attributed to its PID) waits on item 8; `--allow-exe` is built for it.

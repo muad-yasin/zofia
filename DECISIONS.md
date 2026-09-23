@@ -397,3 +397,22 @@ not the implementation.
   this isn't a guess. A string or object is refused.
 - **Remaining difference, wording only:** for a mistyped value the Node reader says "not
   yet observed", and the Rust reader says "present but mistyped". Both show UNKNOWN.
+
+## 2026-09-23 — item 6 harness (zofia-26)
+
+- **strace, not a home-made tracer.** `strace` and `Xvfb` are missing, and gcc/ptrace
+  would allow a custom tracer. But a hand-written ptrace tracer is exactly the kind of
+  checker that needs its own audit. `strace -f` is the standard tool, and the owner can
+  install it with one command.
+- **The PID tree is scoped twice.** `strace -f` follows every fork/clone, and a private
+  PID namespace means nothing the app spawns can outlive or leave the traced run.
+  Leftovers die with the namespace.
+- **Port 53 on loopback counts as egress.** Inside the namespace, a DNS query to
+  systemd-resolved's 127.0.0.53 looks like loopback, but outside it the lookup would
+  leave the machine.
+- **Known blind spot, listed rather than hidden:** a unix-socket request to a local
+  daemon (D-Bus, portals) could make that daemon connect out on the app's behalf. No
+  syscall trace of the app's tree can see that. The report lists every unix socket
+  path contacted, for a person to review.
+- **Early exit is INCONCLUSIVE.** An app that crashes at startup sends nothing, and that
+  must not read as a pass.
