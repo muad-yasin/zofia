@@ -7,11 +7,16 @@ zofia_sessions_dir() {
   echo "${ZOFIA_SESSIONS_DIR:-$runtime_dir/zofia/sessions}"
 }
 
-# Deep-merges the JSON object $2 into session $1's state file, under an flock so a
+# Merges the JSON object $2 into session $1's state file, under an flock so a
 # statusline invocation and a hook invocation racing each other can never truncate or
 # corrupt the file (the inotify-watched transport PLAN.md §2.1 describes depends on
 # every write being one complete, valid JSON document). A malformed patch is dropped
 # silently rather than corrupting the last-known-good state.
+#
+# The merge is top-level only (`+`, not jq's recursive `*`): each writer owns one whole
+# key (`latest_statusline`, `latest_hook_event`) and replaces it outright. A deep merge
+# kept a sub-field the new payload no longer carries, e.g. `rate_limits.five_hour` after
+# Claude Code drops it, and presented it as fresh (audit F2, 2026-09-23; PLAN.md §2.2).
 zofia_merge_state() {
   local session_id="$1" patch="$2"
   [ -n "$session_id" ] || return 0
@@ -31,7 +36,7 @@ zofia_merge_state() {
     fi
     local merged
     merged=$(jq -n --argjson old "$existing" --argjson patch "$patch" \
-      '($old * $patch) | .updated_at = (now | floor) | .first_seen_at = (.first_seen_at // (now | floor))' 2>/dev/null) || return 0
+      '($old + $patch) | .updated_at = (now | floor) | .first_seen_at = (.first_seen_at // (now | floor))' 2>/dev/null) || return 0
     [ -n "$merged" ] || return 0
     local tmp="$file.tmp.$$"
     printf '%s\n' "$merged" > "$tmp" && mv -f "$tmp" "$file" && chmod 0600 "$file"

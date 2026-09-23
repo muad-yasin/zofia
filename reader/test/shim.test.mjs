@@ -109,3 +109,40 @@ test("malformed statusline input never corrupts a previously-good state file", a
     assert.equal(state.latest_statusline.model.display_name, "Good");
   });
 });
+
+// Audit F2, 2026-09-23: a deep merge kept `five_hour` after Claude Code dropped it, and the
+// reader then showed the old 87% as "exposed" with a fresh observed_at.
+test("a statusline without five_hour replaces the old one; the reader reports it unknown, not stale-exposed", async () => {
+  await withSessionsDir(async (dir) => {
+    const env = { ZOFIA_SESSIONS_DIR: dir };
+    await runScript("statusline-wrapper.sh", JSON.stringify({
+      session_id: "sess-f2",
+      rate_limits: { five_hour: { used_percentage: 87, resets_at: 1000 }, seven_day: { used_percentage: 10 } },
+      cost: { total_cost_usd: 1.5, total_duration_ms: 5 },
+    }), env);
+    await runScript("hook-writer.sh", JSON.stringify({ session_id: "sess-f2", hook_event_name: "Stop" }), env);
+    const first = JSON.parse(await readFile(path.join(dir, "sess-f2.json"), "utf8"));
+    await runScript("statusline-wrapper.sh", JSON.stringify({
+      session_id: "sess-f2",
+      rate_limits: { seven_day: { used_percentage: 11 } },
+      cost: { total_cost_usd: 1.6 },
+    }), env);
+
+    const state = JSON.parse(await readFile(path.join(dir, "sess-f2.json"), "utf8"));
+    assert.equal(state.latest_statusline.rate_limits.five_hour, undefined);
+    assert.equal(state.latest_statusline.cost.total_duration_ms, undefined, "no nested sub-field survives either");
+    assert.equal(state.latest_hook_event.hook_event_name, "Stop", "the other writer's key is kept");
+    assert.equal(state.first_seen_at, first.first_seen_at);
+
+    const cli = path.join(SHIM_DIR, "..", "bin", "zofia-reader.mjs");
+    const snap = await new Promise((resolve, reject) => {
+      const c = spawn("node", [cli, "--session", "sess-f2"], { env: { ...process.env, ...env } });
+      let out = "";
+      c.stdout.on("data", (d) => (out += d));
+      c.on("close", (code) => (code === 0 ? resolve(JSON.parse(out)) : reject(new Error(`exit ${code}`))));
+    });
+    assert.equal(snap.usagePercent.value, null);
+    assert.equal(snap.usagePercent.availability, "unknown");
+    assert.equal(snap.resetTimer.availability, "unknown");
+  });
+});
