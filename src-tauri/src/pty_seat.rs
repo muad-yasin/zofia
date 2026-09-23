@@ -19,11 +19,15 @@ use crate::hash_sweep::{self, Fingerprint, SweepCache};
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::{sync_channel, SyncSender, TrySendError};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 pub const CENTER_SEAT_SESSION_ID: &str = "center-seat";
 const KILL_ESCALATION_MS: u64 = 5_000; // matches Sophi-A's own KILL_ESCALATION_MS
+/// Input chunks (one per xterm onData, so a whole paste is one chunk) queued for a child
+/// that isn't reading. Past this the write is refused, not blocked on.
+const INPUT_QUEUE: usize = 256;
 
 // XDG_RUNTIME_DIR and DBUS_SESSION_BUS_ADDRESS: without them the child's per-user runtime
 // files fall back to shared /tmp and a keyring-backed credential store can't be reached.
@@ -41,7 +45,10 @@ const SEAT_TERM: [(&str, &str); 2] = [("TERM", "xterm-256color"), ("COLORTERM", 
 
 pub struct PtySeat {
     master: Mutex<Box<dyn portable_pty::MasterPty + Send>>,
-    writer: Mutex<Box<dyn Write + Send>>,
+    /// To the seat's one writer thread: ordered, and write_input never blocks on a child
+    /// that stopped reading (item 4 audit backlog: a 256 KiB paste into a stalled child
+    /// held the seat lock for >3s).
+    input: SyncSender<Vec<u8>>,
     child: Mutex<Box<dyn portable_pty::Child + Send + Sync>>,
     baseline: Fingerprint,
     workdir: PathBuf,
@@ -123,12 +130,21 @@ pub fn spawn(command: &str, args: &[&str], workdir: &Path) -> Result<(PtySeat, B
     // handle here does not close the pty).
     drop(pair.slave);
 
-    let writer = pair.master.take_writer().map_err(|e| format!("failed to take the pty writer: {e}"))?;
+    let mut writer = pair.master.take_writer().map_err(|e| format!("failed to take the pty writer: {e}"))?;
+    let (input, queued) = sync_channel::<Vec<u8>>(INPUT_QUEUE);
+    // Ends when the seat (the sender) is dropped, or the pty stops accepting input.
+    std::thread::spawn(move || {
+        for chunk in queued {
+            if writer.write_all(&chunk).and_then(|_| writer.flush()).is_err() {
+                break;
+            }
+        }
+    });
     let reader = pair.master.try_clone_reader().map_err(|e| format!("failed to clone the pty reader: {e}"))?;
 
     let seat = PtySeat {
         master: Mutex::new(pair.master),
-        writer: Mutex::new(writer),
+        input,
         child: Mutex::new(child),
         baseline,
         workdir: workdir.to_path_buf(),
@@ -151,9 +167,11 @@ impl PtySeat {
         if session_id != CENTER_SEAT_SESSION_ID {
             return Err(format!("ownership check failed: \"{session_id}\" is not the owned center seat"));
         }
-        let mut w = self.writer.lock().map_err(|e| e.to_string())?;
-        w.write_all(data).map_err(|e| e.to_string())?;
-        w.flush().map_err(|e| e.to_string())
+        match self.input.try_send(data.to_vec()) {
+            Ok(()) => Ok(()),
+            Err(TrySendError::Full(_)) => Err("the center seat isn't reading its input; this input was dropped".to_string()),
+            Err(TrySendError::Disconnected(_)) => Err("the center seat's input is closed".to_string()),
+        }
     }
 
     /// Ownership boundary again: only the owned center seat may be resized.
@@ -199,11 +217,15 @@ impl PtySeat {
         if pgid <= 1 {
             return Err(format!("refusing to signal process group {pgid}"));
         }
+        // Listed before any signal: once the leader dies its orphans are reparented and the
+        // link to the seat is gone. Catches descendants that left the group with setsid.
+        let tree = descendants(pgid as u32);
         signal_group(pgid, libc::SIGHUP);
         let exited = wait_for_exit(&mut **child, KILL_ESCALATION_MS);
         // SIGKILL the group either way: members that ignored SIGHUP must not outlive the
         // seat even when the leader itself exited politely. ESRCH (group gone) is fine.
         signal_group(pgid, libc::SIGKILL);
+        kill_listed(&tree);
         if exited || wait_for_exit(&mut **child, 1_000) {
             return Ok(());
         }
@@ -215,6 +237,52 @@ impl PtySeat {
 pub fn resweep_with(workdir: &Path, baseline: &Fingerprint, cache: &Mutex<SweepCache>) -> Vec<&'static str> {
     let mut cache = cache.lock().unwrap_or_else(|e| e.into_inner());
     hash_sweep::changed_paths(baseline, &hash_sweep::sweep_cached(workdir, &mut cache))
+}
+
+/// (pid, start time) of every live descendant of `root`, from /proc. The start time
+/// guards the later kill against pid reuse. A descendant already orphaned before this
+/// runs (a double-forking daemon) isn't found: only a cgroup would hold those.
+fn descendants(root: u32) -> Vec<(u32, u64)> {
+    let mut parent_of: Vec<(u32, u32, u64)> = Vec::new();
+    if let Ok(dir) = std::fs::read_dir("/proc") {
+        for e in dir.flatten() {
+            let Some(pid) = e.file_name().to_str().and_then(|n| n.parse::<u32>().ok()) else { continue };
+            if let Some((ppid, start)) = stat_ppid_start(pid) {
+                parent_of.push((pid, ppid, start));
+            }
+        }
+    }
+    let mut out = Vec::new();
+    let mut frontier = vec![root];
+    while let Some(p) = frontier.pop() {
+        for &(pid, ppid, start) in &parent_of {
+            if ppid == p && !out.iter().any(|&(q, _)| q == pid) {
+                out.push((pid, start));
+                frontier.push(pid);
+            }
+        }
+    }
+    out
+}
+
+/// Fields 4 (ppid) and 22 (starttime) of /proc/<pid>/stat, parsed after the comm field's
+/// closing paren (comm may itself contain spaces or parens).
+fn stat_ppid_start(pid: u32) -> Option<(u32, u64)> {
+    let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let rest = &stat[stat.rfind(')')? + 2..];
+    let f: Vec<&str> = rest.split_whitespace().collect();
+    Some((f.get(1)?.parse().ok()?, f.get(19)?.parse().ok()?))
+}
+
+fn kill_listed(tree: &[(u32, u64)]) {
+    for &(pid, start) in tree {
+        if stat_ppid_start(pid).map(|(_, s)| s) == Some(start) {
+            // SAFETY: kill(2) on a pid just re-verified to be the same process; no memory touched.
+            unsafe {
+                libc::kill(pid as i32, libc::SIGKILL);
+            }
+        }
+    }
 }
 
 fn signal_group(pgid: i32, sig: libc::c_int) {
@@ -432,6 +500,46 @@ mod tests {
             std::thread::sleep(Duration::from_millis(20));
         }
         assert!(!Path::new(&format!("/proc/{gc}")).exists(), "grandchild {gc} outlived stop()");
+    }
+
+    #[test]
+    fn stop_also_ends_a_descendant_that_left_the_group_with_setsid() {
+        let (seat, reader) =
+            spawn("bash", &[&mock_claude_path(), "--with-setsid-grandchild"], Path::new("/tmp")).expect("spawn mock");
+        let rx = spawn_reader_channel(reader);
+        let out = read_until(&rx, "MOCK-CLAUDE-READY", 4096);
+        let sub: u32 = out
+            .lines()
+            .find_map(|l| l.trim().strip_prefix("GRANDCHILD:"))
+            .and_then(|p| p.trim().parse().ok())
+            .unwrap_or_else(|| panic!("no grandchild pid — got: {out}"));
+        // Give setsid a moment to move it into its own session.
+        std::thread::sleep(Duration::from_millis(200));
+        seat.stop(CENTER_SEAT_SESSION_ID).expect("stop");
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        let gone = |p: u32| {
+            std::fs::read_to_string(format!("/proc/{p}/stat")).map_or(true, |s| s.contains(") Z "))
+        };
+        while !gone(sub) && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert!(gone(sub), "setsid descendant {sub} outlived stop()");
+    }
+
+    #[test]
+    fn a_child_that_never_reads_input_cannot_block_the_writer() {
+        let (seat, _reader) = spawn("sleep", &["30"], Path::new("/tmp")).expect("spawn");
+        let chunk = vec![b'x'; 64 * 1024];
+        let started = std::time::Instant::now();
+        let mut refused = 0;
+        for _ in 0..(INPUT_QUEUE + 64) {
+            if seat.write_input(CENTER_SEAT_SESSION_ID, &chunk).is_err() {
+                refused += 1;
+            }
+        }
+        assert!(started.elapsed() < Duration::from_millis(500), "writes blocked for {:?}", started.elapsed());
+        assert!(refused > 0, "a full queue must refuse, not grow without bound");
+        seat.stop(CENTER_SEAT_SESSION_ID).ok();
     }
 
     #[test]

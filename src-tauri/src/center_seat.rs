@@ -148,12 +148,15 @@ fn model_args(model: Option<&str>) -> Result<Vec<String>, String> {
 /// Only if the slot still holds *this* seat: the zombie keeps its pid until reaped, so a
 /// pid match can't be a newer seat. Returns whether it cleared the slot.
 pub fn reap_if_current(seat: &CenterSeat, pid: Option<u32>) -> bool {
-    let Ok(mut slot) = seat.0.lock() else { return false };
-    if pid.is_none() || slot.as_ref().map(|p| p.pid()) != Some(pid) {
-        return false;
-    }
-    if let Some(pty) = slot.take() {
-        // Group-signals any leftover children, then reaps the leader.
+    let taken = {
+        let Ok(mut slot) = seat.0.lock() else { return false };
+        if pid.is_none() || slot.as_ref().map(|p| p.pid()) != Some(pid) {
+            return false;
+        }
+        slot.take()
+    };
+    if let Some(pty) = taken {
+        // Outside the lock: kills any leftover children, then reaps the leader.
         let _ = pty.stop(CENTER_SEAT_SESSION_ID);
     }
     true
@@ -189,17 +192,28 @@ pub fn center_resize(seat: State<'_, CenterSeat>, session_id: String, rows: u16,
     slot.as_ref().ok_or("the center seat isn't running")?.resize(&session_id, rows, cols)
 }
 
+/// Async, and the escalation (up to ~6s against a child that ignores SIGHUP) runs with
+/// the seat taken out of the slot, so neither the GUI thread nor the lock waits on it
+/// (item 4 audit backlog). If the child somehow survives, it goes back in the slot.
 #[tauri::command]
-pub fn center_stop(seat: State<'_, CenterSeat>, session_id: String) -> Result<(), String> {
-    let mut slot = seat.0.lock().map_err(|e| e.to_string())?;
-    match slot.as_ref() {
-        None => Ok(()),
-        Some(pty) => {
-            pty.stop(&session_id)?;
-            *slot = None;
-            Ok(())
+pub async fn center_stop(seat: State<'_, CenterSeat>, session_id: String) -> Result<(), String> {
+    if session_id != CENTER_SEAT_SESSION_ID {
+        return Err(format!("ownership check failed: \"{session_id}\" is not the owned center seat"));
+    }
+    let Some(pty) = seat.0.lock().map_err(|e| e.to_string())?.take() else { return Ok(()) };
+    let (pty, result) = tauri::async_runtime::spawn_blocking(move || {
+        let r = pty.stop(CENTER_SEAT_SESSION_ID);
+        (pty, r)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    if result.is_err() {
+        let mut slot = seat.0.lock().map_err(|e| e.to_string())?;
+        if slot.is_none() {
+            *slot = Some(pty);
         }
     }
+    result
 }
 
 /// Sensitive paths (CLAUDE.md, .claude, .mcp.json) that changed in the seat's workdir since

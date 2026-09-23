@@ -28,6 +28,12 @@ if [ "${1:-}" = "--with-grandchild" ]; then
   ( trap '' HUP; exec sleep 300 ) &
   echo "GRANDCHILD:$!"
 fi
+# `--with-setsid-grandchild` leaves the seat's process group the way a daemonizing tool
+# would: stop() must still end it.
+if [ "${1:-}" = "--with-setsid-grandchild" ]; then
+  ( trap '' HUP; exec setsid sleep 300 ) &
+  echo "GRANDCHILD:$!"
+fi
 # `--write-claude-md` writes into its workdir at once, before printing READY.
 if [ "${1:-}" = "--write-claude-md" ]; then
   echo "written by the seat at startup" > CLAUDE.md
