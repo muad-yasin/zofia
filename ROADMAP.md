@@ -28,7 +28,8 @@ closed items 7 and 9 and its share of the item 1-3 audit fixes (#2-#9 in
    item 2.
 6. ⏳ **Zero-egress audit** (§2.3) — harness and tests built by zofia-26 (`12565ee`). The
    acceptance run against the AppImage waits on `strace` being installed (owner) and
-   on item 5 closing.
+   on item 5 closing. Deferred 2026-09-23 (owner can't install it tonight). No
+   workaround: no custom tracer, no downloaded binaries.
 7. ✅ **Provider/effort config** (§5) — `50ced01` (schema, generator, stale lint) and
    `cc09e9a` (runtime guard). Effort values are `UNKNOWN` placeholders until owner
    decision 7 below.
