@@ -379,4 +379,24 @@ passed 9/9 on the FUSE path and 9/9 on extract-and-run. Real-window live tests 1
   detected sessions by folder, one click to assign; paste-an-id stays as a fallback.
 - Evidence: cargo 82/82, reader 47/47, e2e 17/17, lint 6/6; AppImage rebuilt at `b50f55e`,
   live gaps 16/16 (picker via the real Rust backend), smoke 9/9 x2.
-- Still open from that report: Q4-Q8 and the copy items (C1-C4), not started.
+- Q4-Q8 and C1-C4 followed the same day, below.
+
+## 2026-09-24 — quality-check medium items Q4-Q8 and copy C1-C4 (owner: "Let's start with them")
+
+**Done, tested, pushed.**
+
+- **Q5, readers** (`66c34a4`): the shim records `turn_started_at` on `UserPromptSubmit`; the
+  duration line is now "working for 4m 10s" / "worked for 2m 3s" (UI adds "· done 14:20").
+- **Q4/Q5/C3/Q8, card** (`c9f4fff`): coloured activity headline with glyph; every row's
+  tooltip is its source; chips only for "estimated" / "UNKNOWN"; relative times with the
+  date in the tooltip; compact card is name · activity · context; keyed in-place updates.
+- **Q6/C4, top bar** (`cc899c0`): "5h usage 37% · resets in 3h 12m · 14:20" from the
+  freshest reporting session; "Hide C&C" / "Show C&C".
+- **Q7** (`dafcbea`): full grid from 996 px (2 × pane floor + gaps), DECISIONS.md entry.
+- **C1/C2/C4** (`7e09f21`): plain seat-off message; the settings dialog no longer claims a
+  folder's settings widen the policy (`--restricted` is documented as ignoring them; still
+  unmeasured until item 8's probe); no debug strings in the activity line.
+- Evidence: cargo 84/84, reader 49/49, e2e 21/21, lint 6/6; AppImage rebuilt at `7e09f21`,
+  live gaps 16/16, smoke 9/9 x2.
+- Not done from that report: Q9-Q12 (string-typed mismatches, shared reader fixtures,
+  center-seat state after exit, PTY output transport) and C5 (README link to TRY-IT).
