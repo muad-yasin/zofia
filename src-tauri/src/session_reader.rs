@@ -145,7 +145,7 @@ const REQUIRED: &[(&str, &[&str])] = &[
 /// "path: problem" line per null. A whole-number-valued float for an integer field is a
 /// representation difference, not a wrong value, so it's accepted and normalized, as is
 /// any finite number (floored) for an epoch/token count; everything else is refused.
-fn type_check(v: &mut serde_json::Value) -> Vec<String> {
+fn type_check(v: &mut serde_json::Value) -> Vec<Mismatch> {
     use serde_json::Value;
     let mut out = Vec::new();
     for (path, kind) in SCHEMA {
@@ -177,7 +177,7 @@ fn type_check(v: &mut serde_json::Value) -> Vec<String> {
                     Kind::Int => "an integer",
                     Kind::Pid => "a process id",
                 };
-                out.push(format!("{path}: expected {want}, got {shown}"));
+                out.push(Mismatch { path: (*path).to_string(), kind: MismatchKind::Mistyped { expected: want, got: shown } });
             }
             *slot = new;
         }
@@ -185,7 +185,7 @@ fn type_check(v: &mut serde_json::Value) -> Vec<String> {
     for (parent, keys) in REQUIRED {
         let Some(obj) = v.pointer(parent).and_then(|p| p.as_object()) else { continue };
         if let Some(k) = keys.iter().find(|k| obj.get(**k).map_or(true, |x| x.is_null())) {
-            out.push(format!("{parent}/{k}: missing or mistyped, so all of {parent} was set aside"));
+            out.push(Mismatch { path: format!("{parent}/{k}"), kind: MismatchKind::SetAside { parent: (*parent).to_string() } });
             *v.pointer_mut(parent).unwrap() = serde_json::Value::Null;
         }
     }
@@ -211,7 +211,7 @@ pub struct RawSessionState {
     pub turn_started_at: Option<i64>,
     /// Filled by `parse_session_state`, never read from the file.
     #[serde(skip)]
-    pub type_mismatches: Vec<String>,
+    pub type_mismatches: Vec<Mismatch>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -347,34 +347,59 @@ pub fn derive_snapshot(
     snap
 }
 
-/// Whether mismatch line `m` ("path: problem") explains why leaf `read` is missing: the
-/// leaf itself, a parent it sits under, or a sub-object set aside for a missing required
-/// key (recorded under that key's path, so compare against the key's parent).
-fn affects(read: &str, m: &str) -> bool {
-    let path = m.split(": ").next().unwrap_or("");
-    let under = |p: &str| read == p || read.starts_with(&format!("{p}/"));
-    if under(path) {
-        return true;
+/// One value `type_check` refused. Typed (quality check Q9, 2026-09-23): attribution used to
+/// parse its own message back (`split(": ")`, `contains("set aside")`), so rewording a message
+/// would have silently broken which field got the real reason.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Mismatch {
+    /// JSON pointer of the refused value (for `SetAside`, the missing required key).
+    pub path: String,
+    pub kind: MismatchKind,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum MismatchKind {
+    /// The value had the wrong JSON type and was nulled.
+    Mistyped { expected: &'static str, got: String },
+    /// A required key was missing or mistyped, so the whole sub-object `parent` was dropped.
+    SetAside { parent: String },
+}
+
+impl std::fmt::Display for Mismatch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.kind {
+            MismatchKind::Mistyped { expected, got } => write!(f, "{}: expected {expected}, got {got}", self.path),
+            MismatchKind::SetAside { parent } => write!(f, "{}: missing or mistyped, so all of {parent} was set aside", self.path),
+        }
     }
-    m.contains("set aside") && path.rsplit_once('/').is_some_and(|(parent, _)| under(parent))
+}
+
+/// Whether mismatch `m` explains why leaf `read` is missing: the leaf itself, a parent it
+/// sits under, or a sub-object set aside for a missing required key.
+fn affects(read: &str, m: &Mismatch) -> bool {
+    let under = |p: &str| read == p || read.starts_with(&format!("{p}/"));
+    match &m.kind {
+        MismatchKind::Mistyped { .. } => under(&m.path),
+        MismatchKind::SetAside { parent } => under(&m.path) || under(parent),
+    }
 }
 
 /// For a field that came out `unknown` because a value it reads was mistyped, replaces the
 /// generic "not observed" reason with the real one. Never touches a derived value.
-fn mark_mistyped(snap: &mut SessionSnapshot, mismatches: &[String]) {
+fn mark_mistyped(snap: &mut SessionSnapshot, mismatches: &[Mismatch]) {
     if mismatches.is_empty() {
         return;
     }
     const SL: &str = "/latest_statusline";
     const HOOK: &str = "/latest_hook_event";
-    fn fix<T>(f: &mut FieldOut<T>, reads: &[&str], mismatches: &[String]) {
+    fn fix<T>(f: &mut FieldOut<T>, reads: &[&str], mismatches: &[Mismatch]) {
         if f.availability != "unknown" {
             return;
         }
-        let hits: Vec<&str> = mismatches
+        let hits: Vec<String> = mismatches
             .iter()
             .filter(|m| reads.iter().any(|r| affects(r, m)))
-            .map(String::as_str)
+            .map(Mismatch::to_string)
             .collect();
         if !hits.is_empty() {
             f.source = format!("present but mistyped, shown UNKNOWN rather than guessed: {}", hits.join("; "));
@@ -951,6 +976,18 @@ pub(crate) mod tests {
         assert_eq!(snap.last_active_time.value, Some(1001));
         // 100.0 is the same integer written as a float: accepted, not a mismatch.
         assert!(snap.token_spend.tokens.value.is_some());
+    }
+
+    // Q9: attribution reads the typed kind and path, never the message text.
+    #[test]
+    fn affects_follows_the_typed_mismatch_not_its_wording() {
+        let mistyped = Mismatch { path: "/latest_statusline/rate_limits".into(), kind: MismatchKind::Mistyped { expected: "an object", got: "7".into() } };
+        assert!(affects("/latest_statusline/rate_limits/five_hour/resets_at", &mistyped));
+        assert!(!affects("/latest_statusline/rate_limits_extra", &mistyped), "a sibling with a shared prefix is not under it");
+        let set_aside = Mismatch { path: "/latest_hook_event/observed_at".into(), kind: MismatchKind::SetAside { parent: "/latest_hook_event".into() } };
+        assert!(affects("/latest_hook_event/hook_event_name", &set_aside));
+        assert!(!affects("/latest_statusline/model/display_name", &set_aside));
+        assert_eq!(set_aside.to_string(), "/latest_hook_event/observed_at: missing or mistyped, so all of /latest_hook_event was set aside");
     }
 
     #[test]
