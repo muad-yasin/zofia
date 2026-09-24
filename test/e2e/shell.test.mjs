@@ -91,6 +91,27 @@ test("1280x800: full 2x2 corner grid, no tab strip, center pane <=40% viewport",
   }
 });
 
+// Quality check Q1 (2026-09-23): the center seat opened at 22rem x 16rem (~36 x 11 terminal
+// cells) and sat on top of the corners' values, which `space-between` pushed to the inner edge.
+test("1280x800 and 1400x900: the center seat opens at the 40% ceiling and covers no corner value", async () => {
+  for (const [w, h] of [[1280, 800], [1400, 900]]) {
+    const page = await newPageAt(w, h);
+    try {
+      const center = await page.$eval("#center-pane", (el) => el.getBoundingClientRect().toJSON());
+      assert.ok(center.width >= w * 0.4 - 1 && center.height >= h * 0.4 - 1, `${w}x${h}: center seat is ${center.width}x${center.height}, not at the 40% ceiling`);
+      const resize = await page.$eval("#center-pane", (el) => getComputedStyle(el).resize);
+      assert.equal(resize, "both", "the center seat must have a resize grip");
+      const covered = await page.$$eval(".corner .full-card .field-row > span, .corner .assign-form > *", (els, c) =>
+        els.map((el) => ({ text: el.textContent, r: el.getBoundingClientRect() }))
+          .filter(({ r }) => r.width > 0 && r.left < c.right && r.right > c.left && r.top < c.bottom && r.bottom > c.top)
+          .map(({ text }) => text), center);
+      assert.deepEqual(covered, [], `${w}x${h}: corner fields under the center seat`);
+    } finally {
+      await page.close();
+    }
+  }
+});
+
 test("1024x768: medium breakpoint collapses to a 2-pane window plus a visible tab strip", async () => {
   const page = await newPageAt(1024, 768);
   try {

@@ -253,6 +253,9 @@ export class GridShell {
       el.className = "corner" + (session ? "" : " empty");
       el.tabIndex = 0;
       el.dataset.corner = String(i);
+      // Which side the center seat overlaps: a left-column corner's inner edge is its right.
+      el.dataset.side = i % 2 === 0 ? "left" : "right";
+      el.dataset.row = visible.length === 4 && i >= 2 ? "bottom" : "top";
       el.setAttribute("aria-label", session ? `Session: ${session.label}` : `Corner ${i + 1}: no session assigned`);
 
       if (!session) {
