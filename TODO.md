@@ -35,7 +35,13 @@ the next container run.
 2. **Measure his actual screen** — replaces §4's placeholder breakpoint/pane-floor pixel
    values with real ones. Not urgent; the shell already works and is tested against the
    placeholders.
-3. **Confirm whether Windows packaging is ever reopened** — not blocking anything
+3. **Decide, before item 8 opens: should the center seat get a state card?** (quality
+   check Q11, 2026-09-23). The seat launches with `--restricted`, which ignores settings
+   files, including the statusLine shim that feeds every corner. So the real seat would
+   show a terminal but no model/usage/context card. Options: accept that; or give the seat
+   its statusline some other way (e.g. `--settings` with only the shim, which the item 8
+   probe would then have to show doesn't widen the tool policy). Not blocking anything yet.
+4. **Confirm whether Windows packaging is ever reopened** — not blocking anything
    currently building.
 
 ## Real gaps carried from `DECISIONS.md`, not yet resolved

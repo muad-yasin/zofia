@@ -398,5 +398,22 @@ passed 9/9 on the FUSE path and 9/9 on extract-and-run. Real-window live tests 1
   unmeasured until item 8's probe); no debug strings in the activity line.
 - Evidence: cargo 84/84, reader 49/49, e2e 21/21, lint 6/6; AppImage rebuilt at `7e09f21`,
   live gaps 16/16, smoke 9/9 x2.
-- Not done from that report: Q9-Q12 (string-typed mismatches, shared reader fixtures,
-  center-seat state after exit, PTY output transport) and C5 (README link to TRY-IT).
+- Q9-Q12 and C5 followed the same day, below.
+
+## 2026-09-24 — quality-check low items Q9-Q12 and C5 (owner: "Shall we do the lower priority items next?")
+
+**Done, tested, pushed.**
+
+- **C5** (`45127b2`): README links `docs/TRY-IT.md`; stale install status, hook list and
+  TRY-IT header fixed; `cwd` / `turn_started_at` documented in the shim schema.
+- **Q10** (`5fe9bf0`): `test/reader-parity/` — 14 shared cases both readers assert against
+  (value, availability, observed_at of all ten fields); a wrong expected value fails both.
+- **Q9** (`19ce939`): typed `Mismatch { path, kind }`; attribution no longer parses messages.
+- **Q11** (`d2141e7`): "Center seat exited with code 0." (real exit status, reaped from the
+  zombie leader), model line cleared; the "seat is off" notice and a disabled Launch show
+  at mount via `center_gate`.
+- **Q12** (`d47bf3a`): seat output on the launch's own `Channel` as raw bytes.
+- Evidence: cargo 87/87, reader 64/64, e2e 21/21; AppImage rebuilt at `d47bf3a`, live gaps
+  22/22 (exit message, off-notice at mount, a 3000-byte echo over the channel), smoke 9/9 x2.
+- **Left for the owner** (Q11's last part, TODO.md): `--restricted` ignores settings files,
+  including the statusLine shim, so once item 8 opens the real center seat has no state card.
