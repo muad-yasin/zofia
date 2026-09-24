@@ -58,9 +58,13 @@ function writeState(id, { pid = process.pid, model = "LIVE", hook = null, hookAg
 const corner = (i) => `#corner-grid .corner[data-corner="${i}"]`;
 const assignInput = (i) => `input[aria-label="Assign a session to corner ${i + 1}"]`;
 
+// Through the real picker (quality check Q3): the session's state file is already in the
+// sessions dir, so Rust's detected_sessions must offer it within one 5 s refresh.
 async function assign(app, i, id) {
-  await app.setValue(assignInput(i), id);
-  await app.click(`${corner(i)} .assign-form button`);
+  const pick = `${corner(i)} .pick[data-session-id="${id}"]`;
+  const offered = await waitFor(async () => (await app.findAll(pick)).length === 1, 12000, 500);
+  check(`the picker in corner ${i + 1} offers ${id}`, Boolean(offered));
+  if (offered) await app.click(pick);
 }
 
 // A process the "ended" check can kill. Same PID namespace as the app (same container).
@@ -82,15 +86,17 @@ try {
   const reg = await waitFor(async () => (await app.textContent(corner(0))).includes("LIVE-REG"), 5000);
   check("register_session delivers a snapshot for a file written before the assignment", Boolean(reg));
 
-  // 2. Stale with no file write: the hook event is 110s old at setup, so only a later
-  //    re-derive (the 15s tick) can push it past the 120s threshold.
-  step("stale via the re-derive tick (up to ~30s)");
+  // 2. The re-derive tick with no file write: the hook event is 110s old at setup, so only
+  //    a later re-derive (the 15s tick) can move its elapsed time past 2m. The state names
+  //    a live pid (this process), so a long tool call must never read "stale" (Q2).
+  step("elapsed time via the re-derive tick (up to ~30s)");
   writeState("live-stale", { hook: "PreToolUse", hookAge: 110 });
   await assign(app, 1, "live-stale");
-  const running = await waitFor(async () => (await app.textContent(corner(1))).includes("running tool: Bash"), 5000);
-  check("a fresh PreToolUse shows running tool", Boolean(running));
-  const stale = await waitFor(async () => /stale \(last event \d+s ago\)/.test(await app.textContent(corner(1))), 40000, 1000);
-  check("stale appears without any file write (15s tick in start_watcher)", Boolean(stale));
+  const running = await waitFor(async () => (await app.textContent(corner(1))).includes("running tool: Bash · 1m"), 5000);
+  check("a PreToolUse shows running tool with its elapsed time", Boolean(running));
+  const ticked = await waitFor(async () => /running tool: Bash · 2m \d+s/.test(await app.textContent(corner(1))), 40000, 1000);
+  check("the elapsed time moves past 2m without any file write (15s tick in start_watcher)", Boolean(ticked));
+  check("a live process's long tool call never reads stale", !(await app.textContent(corner(1))).includes("stale"));
 
   // 3. Ended with no file write: the state names a live pid; kill it.
   step("ended via the re-derive tick (up to ~20s)");
