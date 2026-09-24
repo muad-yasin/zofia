@@ -106,6 +106,7 @@ export class GridShell {
 
     const shell = document.createElement("main");
     shell.id = "shell";
+    shell.dataset.center = "open";
     this.shellEl = shell;
 
     const cornerGrid = document.createElement("div");
@@ -171,6 +172,7 @@ export class GridShell {
   private toggleCenterMinimized(): void {
     this.centerMinimized = !this.centerMinimized;
     this.centerEl.classList.toggle("minimized", this.centerMinimized);
+    this.shellEl.dataset.center = this.centerMinimized ? "minimized" : "open";
     this.announce(this.centerMinimized ? "Center seat minimized" : "Center seat restored");
   }
 

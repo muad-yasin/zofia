@@ -18,7 +18,8 @@ import { field, unknownField, AVAILABILITY } from "./fieldSchema.mjs";
 
 const STALE_AFTER_S = 120; // PLAN.md §2.1's own caught bug used this number to wrongly
 // assert "idle" after a silence. Reused here only to label a *non-terminal* state
-// "stale (last event Ns ago)" when nothing newer has arrived — never to assert idle.
+// "stale" when nothing newer has arrived AND no owning process is recorded to check —
+// never to assert idle, and never on a process known to be alive (Q2).
 
 const TERMINAL_HOOK_EVENTS = new Set(["Stop", "SessionEnd"]);
 
@@ -183,27 +184,45 @@ function deriveActivityState(hook, pid, now, isProcessAlive) {
   }
 
   const label = activityLabelForEvent(hook);
-  const ageS = now - hook.observed_at;
-  const isTerminal = TERMINAL_HOOK_EVENTS.has(hook.hook_event_name) || label === "waiting for input";
+  const ageS = Math.max(0, now - hook.observed_at);
+  const isTerminal = TERMINAL_HOOK_EVENTS.has(hook.hook_event_name) || label === "waiting for input" || label === "ready";
+  if (isTerminal) {
+    return field(label, AVAILABILITY.APPROXIMABLE, `derived from last hook event: ${hook.hook_event_name}`, hook.observed_at);
+  }
 
-  if (!isTerminal && ageS > STALE_AFTER_S) {
-    // Silence is not a status (PLAN.md §12): never claim the tool call (or whatever
-    // non-terminal state we last saw) is still active just because nothing newer arrived.
+  // Quality check Q2 (2026-09-23): a long tool call (a build, a test suite, a subagent) sends
+  // no event until it finishes, so silence on a live process is the busiest state, not a stale
+  // one. With the owning process verified alive, show the state and how long it has lasted
+  // ("running tool: Bash · 4m 10s", the spec's "XYZ for 49s"). Only with no process to check
+  // does a long silence become "stale" (PLAN.md §12: silence is not a status).
+  const processAlive = typeof pid === "number";
+  if (!processAlive && ageS > STALE_AFTER_S) {
     return field(
-      `stale (last event ${ageS}s ago)`,
+      `stale · last event ${fmtElapsed(ageS)} ago`,
       AVAILABILITY.APPROXIMABLE,
-      `no hook event observed in the last ${STALE_AFTER_S}s since ${hook.hook_event_name}; not asserted idle or still-running`,
+      `no hook event in the last ${STALE_AFTER_S}s since ${hook.hook_event_name} and no owning process recorded to check; not asserted idle or still-running`,
       hook.observed_at
     );
   }
+  return field(
+    `${label} · ${fmtElapsed(ageS)}`,
+    AVAILABILITY.APPROXIMABLE,
+    `derived from last hook event: ${hook.hook_event_name}; elapsed since it${processAlive ? `, owning process pid ${pid} alive` : ""}`,
+    hook.observed_at
+  );
+}
 
-  return field(label, AVAILABILITY.APPROXIMABLE, `derived from last hook event: ${hook.hook_event_name}`, hook.observed_at);
+/** 42 -> "42s", 250 -> "4m 10s", 7260 -> "2h 1m". */
+export function fmtElapsed(s) {
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
+  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
 }
 
 function activityLabelForEvent(hook) {
   switch (hook.hook_event_name) {
     case "SessionStart":
-      return "processing";
+      return "ready"; // a new session waits for its first prompt
     case "UserPromptSubmit":
       return "processing";
     case "PreToolUse":

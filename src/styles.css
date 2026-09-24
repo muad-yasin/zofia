@@ -242,6 +242,21 @@ body {
   grid-column: 1 / -1;
 }
 
+/* While the seat is open it covers the inner ~40% of each corner, so a long value
+   ("running tool: mcp__… · 4m 10s") wraps inside the outer 58% instead of running under it. */
+#shell[data-center="open"] .corner .full-card {
+  max-width: 58%;
+  grid-template-columns: max-content minmax(0, 1fr);
+}
+
+#shell[data-center="open"] .corner[data-side="right"] .full-card {
+  margin-left: auto;
+}
+
+.corner .field-row > span {
+  overflow-wrap: anywhere;
+}
+
 .corner .field-row {
   display: contents;
   font-family: var(--font-mono);

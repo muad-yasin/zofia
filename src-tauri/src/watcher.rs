@@ -23,7 +23,7 @@ pub struct RegisteredSessions(pub Mutex<HashSet<String>>);
 pub struct WatcherHandle(#[allow(dead_code)] pub Debouncer<notify_debouncer_mini::notify::RecommendedWatcher>);
 
 /// Re-derive cadence for registered sessions between file events (audit F3, 2026-09-23).
-/// "stale (last event Ns ago)" and the dead-PID "ended" check both depend on *now*, so
+/// The elapsed time in "running tool: Bash · 4m 10s", "stale · last event …" and the dead-PID "ended" check both depend on *now*, so
 /// without a tick a session whose terminal was killed mid-tool read "running tool" forever.
 /// Placeholder: well under session_reader's 120s stale threshold, so a stale label shows
 /// within ~135s of the last event rather than up to ~240s; each tick is a few small reads.
@@ -170,7 +170,7 @@ mod tests {
         let body = r#"{"latest_hook_event":{"observed_at":1000,"hook_event_name":"PreToolUse","tool_name":"Bash"}}"#;
         let (fresh, later) = with_state_file("f3", body, || (snapshot_for("f3", 1010), snapshot_for("f3", 1000 + 121)));
         assert!(!fresh.activity_state.value.clone().unwrap_or_default().starts_with("stale"));
-        assert_eq!(later.activity_state.value.as_deref(), Some("stale (last event 121s ago)"));
+        assert_eq!(later.activity_state.value.as_deref(), Some("stale · last event 2m 1s ago"));
     }
 
     #[test]

@@ -69,9 +69,14 @@ PLAN.md §2.1's own caught bug: don't label a session "idle" just because nothin
 heard from it for N seconds — silence isn't a status. `deriveSnapshot.mjs` only ever
 reports `idle` after a *verified* lifecycle event (`Stop`, or a `Notification` with
 `notification_type: agent_completed`). A non-terminal state (mid-tool-call, mid-prompt)
-that's gone quiet for over 120s renders `stale (last event Ns ago)` instead — distinct
-from both "still running" and "idle." Terminal-death is its own case, verified via
-`kill -0` against the shim-captured owning PID, not inferred from any timeout.
+shows how long it has lasted (`running tool: Bash · 4m 10s`) while the shim-captured
+owning PID is alive: a long build sends no event until it ends, so silence there is the
+busiest state, not a stale one (quality check Q2, 2026-09-23). Only a session with no PID
+recorded that's gone quiet for over 120s renders `stale · last event 2m 1s ago` — distinct
+from both "still running" and "idle." `SessionStart` reads `ready` (waiting for the first
+prompt). Terminal-death is its own case, verified via `kill -0` against the owning PID,
+not inferred from any timeout. That PID was checked against four live sessions on
+2026-09-24: in each it is the `claude` process itself, not a short-lived hook shell.
 
 ## Still open (real, not rhetorical)
 

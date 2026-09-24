@@ -18,7 +18,7 @@ export function sampleSnapshot(overrides: Partial<SessionSnapshot> = {}): Sessio
     usagePercent: field(37.2, "exposed", "sample data", now),
     resetTimer: field(now + 3 * 3600 + 12 * 60, "exposed", "sample data", now),
     contextPercent: field(18, "exposed", "sample data", now),
-    activityState: field("running tool: Bash", "approximable", "sample data", now),
+    activityState: field("running tool: Bash · 42s", "approximable", "sample data", now),
     durationLine: field(null, "unknown", "not exposed for a corner session (PLAN.md §2.2)", null),
     tokenSpend: {
       usd: field(0.84, "exposed", "sample data", now),
@@ -38,7 +38,7 @@ export const SAMPLE_SESSIONS: SessionSnapshot[] = [
   }),
   sampleSnapshot({
     session_id: "sample-3",
-    activityState: field("stale (last event 210s ago)", "approximable", "sample data", Math.floor(Date.now() / 1000) - 210),
+    activityState: field("stale · last event 3m 30s ago", "approximable", "sample data", Math.floor(Date.now() / 1000) - 210),
     usagePercent: field(null, "unknown", "rate_limits absent in this sample (pre-first-API-response)", null),
     resetTimer: field(null, "unknown", "rate_limits absent in this sample (pre-first-API-response)", null),
   }),

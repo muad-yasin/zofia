@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { deriveSnapshot } from "../src/deriveSnapshot.mjs";
+import { deriveSnapshot, fmtElapsed } from "../src/deriveSnapshot.mjs";
 import { FIELD_KEYS } from "../src/fieldSchema.mjs";
 
 function baseSl(overrides = {}) {
@@ -78,7 +78,7 @@ test("durationLine is always unknown for a corner session, regardless of input",
 test("activity state: PreToolUse -> running tool: <name>", () => {
   const raw = { latest_statusline: null, latest_hook_event: { observed_at: 1000, hook_event_name: "PreToolUse", tool_name: "Bash" }, pid: null };
   const snap = deriveSnapshot(raw, { now: 1005 });
-  assert.equal(snap.activityState.value, "running tool: Bash");
+  assert.equal(snap.activityState.value, "running tool: Bash · 5s");
   assert.equal(snap.activityState.availability, "approximable");
 });
 
@@ -88,17 +88,37 @@ test("activity state: Stop -> idle, and stays idle even long after (terminal, no
   assert.equal(snap.activityState.value, "idle");
 });
 
-test("activity state: non-terminal event gone stale -> 'stale (last event Ns ago)', never asserted as still-running or idle", () => {
+test("activity state: non-terminal event gone silent with no process to check -> 'stale · last event …', never asserted as still-running or idle", () => {
   const raw = { latest_statusline: null, latest_hook_event: { observed_at: 1000, hook_event_name: "PreToolUse", tool_name: "Bash" }, pid: null };
   const snap = deriveSnapshot(raw, { now: 1000 + 121 });
-  assert.equal(snap.activityState.value, "stale (last event 121s ago)");
+  assert.equal(snap.activityState.value, "stale · last event 2m 1s ago");
   assert.notEqual(snap.activityState.value, "idle");
 });
 
 test("activity state: fresh non-terminal event under the stale threshold is NOT marked stale", () => {
   const raw = { latest_statusline: null, latest_hook_event: { observed_at: 1000, hook_event_name: "PreToolUse", tool_name: "Bash" }, pid: null };
   const snap = deriveSnapshot(raw, { now: 1000 + 60 });
-  assert.equal(snap.activityState.value, "running tool: Bash");
+  assert.equal(snap.activityState.value, "running tool: Bash · 1m 0s");
+});
+
+// Quality check Q2: a four-minute build on a live process is the busiest state, never "stale".
+test("activity state: a long tool call on a live process shows its elapsed time, never stale", () => {
+  const raw = { latest_statusline: null, latest_hook_event: { observed_at: 1000, hook_event_name: "PreToolUse", tool_name: "Bash" }, pid: 4242 };
+  const snap = deriveSnapshot(raw, { now: 1000 + 250, isProcessAlive: () => true });
+  assert.equal(snap.activityState.value, "running tool: Bash · 4m 10s");
+  assert.match(snap.activityState.source, /pid 4242 alive/);
+});
+
+test("activity state: SessionStart -> ready (waiting for the first prompt), never stale", () => {
+  const raw = { latest_statusline: null, latest_hook_event: { observed_at: 1000, hook_event_name: "SessionStart" }, pid: null };
+  const snap = deriveSnapshot(raw, { now: 1000 + 10_000 });
+  assert.equal(snap.activityState.value, "ready");
+});
+
+test("fmtElapsed: seconds, minutes, hours", () => {
+  assert.equal(fmtElapsed(42), "42s");
+  assert.equal(fmtElapsed(250), "4m 10s");
+  assert.equal(fmtElapsed(7260), "2h 1m");
 });
 
 test("activity state: dead owning process overrides everything else, even a fresh Stop", () => {

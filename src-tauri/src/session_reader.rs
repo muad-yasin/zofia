@@ -20,7 +20,8 @@ use std::path::PathBuf;
 
 const STALE_AFTER_S: i64 = 120; // PLAN.md §2.1's own caught bug used this number to
 // wrongly assert "idle" after a silence. Reused here only to label a *non-terminal*
-// state "stale (last event Ns ago)" when nothing newer has arrived — never to assert idle.
+// state "stale" when nothing newer has arrived AND no owning process is recorded to check —
+// never to assert idle, and never on a process known to be alive (Q2).
 
 const TERMINAL_HOOK_EVENTS: [&str; 2] = ["Stop", "SessionEnd"];
 
@@ -518,7 +519,8 @@ fn derive_last_active_time(sl: Option<&RawStatusline>, hook: Option<&RawHookEven
 
 fn activity_label_for_event(hook: &RawHookEvent) -> String {
     match hook.hook_event_name.as_str() {
-        "SessionStart" | "UserPromptSubmit" => "processing".to_string(),
+        "SessionStart" => "ready".to_string(), // a new session waits for its first prompt
+        "UserPromptSubmit" => "processing".to_string(),
         "PreToolUse" => match &hook.tool_name {
             Some(name) => format!("running tool: {name}"),
             None => "running tool".to_string(),
@@ -551,19 +553,43 @@ fn derive_activity_state(hook: Option<&RawHookEvent>, pid: Option<u32>, now: i64
     }
 
     let label = activity_label_for_event(hook);
-    let age_s = now - hook.observed_at;
-    let is_terminal = TERMINAL_HOOK_EVENTS.contains(&hook.hook_event_name.as_str()) || label == "waiting for input";
+    let age_s = (now - hook.observed_at).max(0);
+    let is_terminal = TERMINAL_HOOK_EVENTS.contains(&hook.hook_event_name.as_str()) || label == "waiting for input" || label == "ready";
+    if is_terminal {
+        return field(label, "approximable", format!("derived from last hook event: {}", hook.hook_event_name), Some(hook.observed_at));
+    }
 
-    if !is_terminal && age_s > STALE_AFTER_S {
+    // Quality check Q2 (2026-09-23): a long tool call (a build, a test suite, a subagent) sends
+    // no event until it finishes, so silence on a live process is the busiest state, not a stale
+    // one. With the owning process verified alive, show the state and how long it has lasted
+    // ("running tool: Bash · 4m 10s", the spec's "XYZ for 49s"). Only with no process to check
+    // does a long silence become "stale" (PLAN.md §12: silence is not a status).
+    if pid.is_none() && age_s > STALE_AFTER_S {
         return field(
-            format!("stale (last event {age_s}s ago)"),
+            format!("stale · last event {} ago", fmt_elapsed(age_s)),
             "approximable",
-            format!("no hook event observed in the last {STALE_AFTER_S}s since {}; not asserted idle or still-running", hook.hook_event_name),
+            format!("no hook event in the last {STALE_AFTER_S}s since {} and no owning process recorded to check; not asserted idle or still-running", hook.hook_event_name),
             Some(hook.observed_at),
         );
     }
+    let alive_note = pid.map(|p| format!(", owning process pid {p} alive")).unwrap_or_default();
+    field(
+        format!("{label} · {}", fmt_elapsed(age_s)),
+        "approximable",
+        format!("derived from last hook event: {}; elapsed since it{alive_note}", hook.hook_event_name),
+        Some(hook.observed_at),
+    )
+}
 
-    field(label, "approximable", format!("derived from last hook event: {}", hook.hook_event_name), Some(hook.observed_at))
+/// 42 -> "42s", 250 -> "4m 10s", 7260 -> "2h 1m". Mirrors reader/src/deriveSnapshot.mjs.
+fn fmt_elapsed(s: i64) -> String {
+    if s < 60 {
+        format!("{s}s")
+    } else if s < 3600 {
+        format!("{}m {}s", s / 60, s % 60)
+    } else {
+        format!("{}h {}m", s / 3600, (s % 3600) / 60)
+    }
 }
 
 #[cfg(test)]
@@ -664,7 +690,7 @@ pub(crate) mod tests {
             latest_statusline: None,
             latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }), type_mismatches: Vec::new() };
         let snap = derive_snapshot("s1", Some(&raw), 1005, &alive);
-        assert_eq!(snap.activity_state.value, Some("running tool: Bash".to_string()));
+        assert_eq!(snap.activity_state.value, Some("running tool: Bash · 5s".to_string()));
         assert_eq!(snap.activity_state.availability, "approximable");
     }
 
@@ -682,8 +708,38 @@ pub(crate) mod tests {
             latest_statusline: None,
             latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }), type_mismatches: Vec::new() };
         let snap = derive_snapshot("s1", Some(&raw), 1000 + 121, &alive);
-        assert_eq!(snap.activity_state.value, Some("stale (last event 121s ago)".to_string()));
+        assert_eq!(snap.activity_state.value, Some("stale · last event 2m 1s ago".to_string()));
         assert_ne!(snap.activity_state.value, Some("idle".to_string()));
+    }
+
+    // Q2: a four-minute build on a live process is the busiest state, never "stale".
+    #[test]
+    fn activity_long_tool_call_on_live_process_is_never_stale() {
+        let raw = RawSessionState {
+            pid: Some(4242),
+            latest_statusline: None,
+            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }), type_mismatches: Vec::new() };
+        let snap = derive_snapshot("s1", Some(&raw), 1000 + 250, &alive);
+        assert_eq!(snap.activity_state.value, Some("running tool: Bash · 4m 10s".to_string()));
+        assert!(snap.activity_state.source.contains("pid 4242 alive"));
+    }
+
+    // Q2: a new session is waiting for its first prompt, not processing, and never goes stale.
+    #[test]
+    fn activity_session_start_is_ready_and_never_stale() {
+        let raw = RawSessionState {
+            pid: None,
+            latest_statusline: None,
+            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "SessionStart".into(), tool_name: None, notification_type: None, end_reason: None }), type_mismatches: Vec::new() };
+        let snap = derive_snapshot("s1", Some(&raw), 1000 + 10_000, &alive);
+        assert_eq!(snap.activity_state.value, Some("ready".to_string()));
+    }
+
+    #[test]
+    fn fmt_elapsed_shapes() {
+        assert_eq!(fmt_elapsed(42), "42s");
+        assert_eq!(fmt_elapsed(250), "4m 10s");
+        assert_eq!(fmt_elapsed(7260), "2h 1m");
     }
 
     #[test]
@@ -693,7 +749,7 @@ pub(crate) mod tests {
             latest_statusline: None,
             latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }), type_mismatches: Vec::new() };
         let snap = derive_snapshot("s1", Some(&raw), 1000 + 60, &alive);
-        assert_eq!(snap.activity_state.value, Some("running tool: Bash".to_string()));
+        assert_eq!(snap.activity_state.value, Some("running tool: Bash · 1m 0s".to_string()));
     }
 
     #[test]
