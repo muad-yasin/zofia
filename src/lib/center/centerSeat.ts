@@ -24,7 +24,7 @@ interface ForeignSettingsInfo {
 
 export async function mountCenterSeat(body: HTMLElement): Promise<void> {
   if (!isTauriRuntime()) return;
-  const { invoke } = await import("@tauri-apps/api/core");
+  const { invoke, Channel } = await import("@tauri-apps/api/core");
   const { listen } = await import("@tauri-apps/api/event");
 
   body.textContent = "";
@@ -75,12 +75,18 @@ export async function mountCenterSeat(body: HTMLElement): Promise<void> {
   });
   new ResizeObserver(() => fit.fit()).observe(termHost);
 
+  // Q12: each launch gets its own output channel; Rust sends raw bytes on it, in order.
   let bytesIn = 0;
-  await listen<number[]>("zofia://center-output", (e) => {
-    bytesIn += e.payload.length;
-    termHost.dataset.bytesIn = String(bytesIn); // byte count only, never content: lets the smoke test tell "no events" from "not rendered"
-    term.write(new Uint8Array(e.payload));
-  });
+  const outputChannel = () => {
+    const ch = new Channel<ArrayBuffer | number[]>();
+    ch.onmessage = (chunk) => {
+      const bytes = new Uint8Array(chunk); // ArrayBuffer, or a number array for small chunks
+      bytesIn += bytes.length;
+      termHost.dataset.bytesIn = String(bytesIn); // byte count only, never content: lets the smoke test tell "no events" from "not rendered"
+      term.write(bytes);
+    };
+    return ch;
+  };
   // Rust frees the seat's slot before emitting this, so Launch works again at once. It says
   // how the seat ended, and the model line goes: nothing is running any more (Q11).
   await listen<{ how: string | null } | null>("zofia://center-exit", (e) => {
@@ -113,7 +119,7 @@ export async function mountCenterSeat(body: HTMLElement): Promise<void> {
       // No model picker yet: null means config/providers.json's default (owner decision 4,
       // sonnet), applied in Rust. The pane shows the model and effort Rust read back from
       // the argv it actually launched (effort: owner decision 2).
-      const launched = await invoke<{ model: string; effort: string | null }>("center_spawn", { workdir, confirmedDigest, model: null });
+      const launched = await invoke<{ model: string; effort: string | null }>("center_spawn", { workdir, confirmedDigest, model: null, onOutput: outputChannel() });
       running = true;
       launcher.hidden = true;
       modelLine.textContent = `Model: ${launched.model}` + (launched.effort ? ` · effort: ${launched.effort}` : "");

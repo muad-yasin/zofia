@@ -136,6 +136,21 @@ try {
   const heard = await waitFor(async () => (await term()).match(/HEARD:([A-Za-z0-9]*)/)?.[1], 10000);
   check("62 separate keystrokes arrive in order", heard === seq, `heard ${JSON.stringify(heard)}`);
 
+  // Q12: output over 1 KiB leaves Tauri's direct path for its binary fetch on the channel.
+  step("a 3000-byte echo through the output channel");
+  const before = Number(await app.run("return document.querySelector('.center-term').dataset.bytesIn || '0';"));
+  await app.run(
+    "const ta = document.querySelector('.xterm-helper-textarea'); ta.focus();" +
+      "ta.dispatchEvent(new InputEvent('input', {data: 'Q'.repeat(3000) + '\\r', inputType: 'insertText', bubbles: true}));",
+  );
+  const bigEcho = await waitFor(async () => {
+    const n = Number(await app.run("return document.querySelector('.center-term').dataset.bytesIn || '0';"));
+    return n - before >= 3006 ? n - before : null; // at least HEARD: + 3000 bytes
+  }, 10000);
+  // xterm's DOM renderer holds only the visible rows, so check the tail made it to the screen.
+  const tail = await app.run("return /Q{40}/.test(document.querySelector('.center-term').textContent);");
+  check("a 3000-byte line comes back through the channel and renders", Boolean(bigEcho) && tail, `+${bigEcho} bytes`);
+
   // Q11: when the seat ends on its own, the pane says how, and drops the model line.
   step("the seat reports how it ended");
   check("the model line shows while the seat runs", (await app.textContent(".center-model")).startsWith("Model: sonnet"));

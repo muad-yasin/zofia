@@ -136,6 +136,10 @@ pub fn center_spawn(
     workdir: String,
     confirmed_digest: Option<String>,
     model: Option<String>,
+    // Quality check Q12: the seat's output goes back on this call's own channel as raw bytes,
+    // in order, to the webview that launched it, instead of a global event carrying a JSON
+    // number array (~30 KB of JSON per 8 KiB read).
+    on_output: tauri::ipc::Channel<tauri::ipc::InvokeResponseBody>,
 ) -> Result<Launched, String> {
     let dir = Path::new(&workdir);
     if !dir.is_dir() {
@@ -157,7 +161,7 @@ pub fn center_spawn(
     let (pty, reader) = pty_seat::spawn(&program, &arg_refs, dir)?;
     let pid = pty.pid();
     *slot = Some(pty);
-    forward_output(app.clone(), reader, pid);
+    forward_output(app.clone(), reader, pid, on_output);
     watch_leader(app, pid);
     // Returned so the pane shows the model and effort the seat was actually launched with.
     Ok(launched)
@@ -233,14 +237,14 @@ struct CenterExit {
     how: Option<String>,
 }
 
-fn forward_output(app: AppHandle, mut reader: Box<dyn Read + Send>, pid: Option<u32>) {
+fn forward_output(app: AppHandle, mut reader: Box<dyn Read + Send>, pid: Option<u32>, out: tauri::ipc::Channel<tauri::ipc::InvokeResponseBody>) {
     std::thread::spawn(move || {
         let mut buf = [0u8; 8192];
         loop {
             match reader.read(&mut buf) {
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
-                    if app.emit("zofia://center-output", buf[..n].to_vec()).is_err() {
+                    if out.send(tauri::ipc::InvokeResponseBody::Raw(buf[..n].to_vec())).is_err() {
                         break;
                     }
                 }
