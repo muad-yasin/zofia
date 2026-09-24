@@ -1,4 +1,4 @@
-import type { CornerIndex, Field, RegisteredSession } from "./types.js";
+import type { CornerIndex, DetectedSession, Field, RegisteredSession } from "./types.js";
 import type { PaneRegistry } from "./paneRegistry.js";
 
 const BREAKPOINT_FULL = 1280;
@@ -37,6 +37,23 @@ function fmtClock(f: Field<number>): string {
   return new Date(f.value * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
+/** Unix epoch seconds -> "40s ago", "3m ago", "2h ago": how long since a picker entry last
+ * did anything. Re-rendered with every picker refresh, so it never sits stale for long. */
+function fmtAgo(epochS: number | null): string {
+  if (epochS === null) return "no activity seen yet";
+  const s = Math.max(0, Math.floor(Date.now() / 1000) - epochS);
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  return `${Math.floor(s / 3600)}h ago`;
+}
+
+/** The name a picked session gets in its corner: its folder, plus the id's first four
+ * characters when another offered session shares the folder. */
+export function pickerLabel(session: DetectedSession, offered: DetectedSession[]): string {
+  const shared = offered.filter((d) => d.project === session.project).length > 1;
+  return shared ? `${session.project} · ${session.session_id.slice(0, 4)}` : session.project;
+}
+
 /**
  * Renders the fixed top-bar + four-corner + center shell (PLAN.md §4) into `root`.
  * Corner panes render `SessionSnapshot` state cards only — never terminal bytes; a GUI
@@ -61,11 +78,13 @@ export class GridShell {
   private centerDrag: { dx: number; dy: number } | null = null;
 
   private clearAllBtn: HTMLButtonElement | null = null;
+  /** Sessions the shim has seen, offered in every empty corner (quality check Q3). */
+  private detected: DetectedSession[] = [];
 
   constructor(
     root: HTMLElement,
     registry: PaneRegistry,
-    private onAssignSession?: (corner: CornerIndex, sessionId: string) => void,
+    private onAssignSession?: (corner: CornerIndex, sessionId: string, label: string) => void,
     private onClearAll?: () => void,
   ) {
     this.root = root;
@@ -184,6 +203,15 @@ export class GridShell {
     this.render();
   }
 
+  /** New picker contents (main.ts polls the backend). Re-renders only when something an
+   * empty corner shows would change, so a steady list never disturbs typing or focus. */
+  setDetected(list: DetectedSession[]): void {
+    const key = (l: DetectedSession[]) => JSON.stringify(l.map((d) => [d.session_id, d.project, d.activity, d.last_active]));
+    if (key(list) === key(this.detected)) return;
+    this.detected = list;
+    if (this.registry.getCorners().some((c) => c === null)) this.render();
+  }
+
   private onViewportResize(): void {
     const next = breakpointFor(window.innerWidth);
     if (next !== this.breakpoint) {
@@ -246,7 +274,13 @@ export class GridShell {
     });
     const active = document.activeElement as HTMLElement | null;
     const focusedCorner = active && this.cornerGridEl.contains(active) ? active.closest<HTMLElement>(".corner")?.dataset.corner : undefined;
-    const focusedRole = active?.tagName === "INPUT" ? "input" : active?.tagName === "BUTTON" ? "button" : "corner";
+    const focusedRole = active?.tagName === "INPUT" ? "input" : active?.classList.contains("pick") ? `pick:${active.dataset.sessionId}` : active?.tagName === "BUTTON" ? "button" : "corner";
+    // Only a paste box the owner opened or closed by hand keeps its state; one still at its
+    // default follows the new default (open exactly when no session is offered).
+    const pasteToggled = new Map<string, boolean>();
+    this.cornerGridEl.querySelectorAll<HTMLDetailsElement>(".assign-form details").forEach((d) => {
+      if (d.dataset.slot && String(d.open) !== d.dataset.defaultOpen) pasteToggled.set(d.dataset.slot, d.open);
+    });
 
     this.resizeObserver.disconnect();
     this.cornerGridEl.innerHTML = "";
@@ -270,22 +304,28 @@ export class GridShell {
       this.resizeObserver.observe(el, { box: "border-box" });
 
       const input = el.querySelector<HTMLInputElement>(".assign-form input");
+      const paste = el.querySelector<HTMLDetailsElement>(".assign-form details");
+      const toggled = paste?.dataset.slot ? pasteToggled.get(paste.dataset.slot) : undefined;
+      if (paste && toggled !== undefined) paste.open = toggled;
       const kept = input?.dataset.slot ? typed.get(input.dataset.slot) : undefined;
       if (input && kept) {
         input.value = kept.value;
         if (kept.start !== null) input.setSelectionRange(kept.start, kept.end ?? kept.start);
       }
       if (focusedCorner === String(i)) {
-        const target = focusedRole === "input" ? input : focusedRole === "button" ? el.querySelector<HTMLElement>(".assign-form button") : el;
+        const target = focusedRole === "input" ? input
+          : focusedRole.startsWith("pick:") ? el.querySelector<HTMLElement>(`.pick[data-session-id="${CSS.escape(focusedRole.slice(5))}"]`)
+          : focusedRole === "button" ? el.querySelector<HTMLElement>(".assign-form .paste button") : el;
         (target ?? el).focus({ preventScroll: true });
       }
     });
   }
 
-  /** Registration is explicit, never automatic discovery (PLAN.md §2.1) — this is the
-   * owner's own "assign a detected session_id to each corner pane by hand" action, not a
-   * scanned/auto-filled list. No-op if the shell was built without an assign callback
-   * (dev-server preview, e2e tests) — the corner just stays "no session assigned". */
+  /** Registration is explicit, never automatic discovery (PLAN.md §2.1): the owner picks
+   * one of the sessions the shim has seen (quality check Q3: by folder and activity, not by
+   * a UUID copied out of `ls`), or pastes an id. Nothing is read continuously until they
+   * pick. No-op if the shell was built without an assign callback — the corner just stays
+   * "no session assigned". */
   private buildAssignForm(cornerIndex: CornerIndex | null): HTMLElement {
     const wrap = document.createElement("div");
     wrap.className = "assign-form";
@@ -295,6 +335,47 @@ export class GridShell {
 
     if (cornerIndex === null || !this.onAssignSession) return wrap;
 
+    const taken = new Set(this.registry.getAllTabEntries().map((s) => s.sessionId));
+    const offered = this.detected.filter((d) => !taken.has(d.session_id));
+    const hint = document.createElement("p");
+    hint.className = "picker-hint";
+    if (offered.length) {
+      hint.textContent = "Pick a session for this corner:";
+      const list = document.createElement("ul");
+      list.className = "session-picker";
+      for (const d of offered) {
+        const name = pickerLabel(d, offered);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "pick";
+        btn.dataset.sessionId = d.session_id;
+        btn.title = `${d.cwd ?? "folder not recorded yet"}\n${d.session_id}`;
+        const nameEl = document.createElement("span");
+        nameEl.className = "pick-name";
+        nameEl.textContent = name;
+        const detail = document.createElement("span");
+        detail.className = "pick-detail";
+        detail.textContent = [d.activity, d.model, fmtAgo(d.last_active)].filter(Boolean).join(" · ");
+        btn.append(nameEl, detail);
+        btn.setAttribute("aria-label", `Show ${name} in corner ${cornerIndex + 1}: ${detail.textContent}`);
+        btn.addEventListener("click", () => this.onAssignSession?.(cornerIndex, d.session_id, name));
+        const li = document.createElement("li");
+        li.append(btn);
+        list.append(li);
+      }
+      wrap.append(hint, list);
+    } else {
+      hint.textContent = "No Claude Code session found yet. Start one in a terminal and it shows up here.";
+      wrap.append(hint);
+    }
+
+    const paste = document.createElement("details");
+    paste.className = "paste";
+    paste.dataset.slot = String(cornerIndex);
+    paste.open = offered.length === 0;
+    paste.dataset.defaultOpen = String(paste.open);
+    const summary = document.createElement("summary");
+    summary.textContent = "Paste a session id instead";
     const input = document.createElement("input");
     input.type = "text";
     input.placeholder = "session_id";
@@ -307,14 +388,16 @@ export class GridShell {
     const submit = () => {
       const sessionId = input.value.trim();
       if (!sessionId) return;
-      this.onAssignSession?.(cornerIndex, sessionId);
+      const known = this.detected.find((d) => d.session_id === sessionId);
+      this.onAssignSession?.(cornerIndex, sessionId, known ? pickerLabel(known, offered) : sessionId);
     };
     button.addEventListener("click", submit);
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") submit();
     });
 
-    wrap.append(input, button);
+    paste.append(summary, input, button);
+    wrap.append(paste);
     return wrap;
   }
 

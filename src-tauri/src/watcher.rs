@@ -29,7 +29,7 @@ pub struct WatcherHandle(#[allow(dead_code)] pub Debouncer<notify_debouncer_mini
 /// within ~135s of the last event rather than up to ~240s; each tick is a few small reads.
 const REDERIVE_EVERY: Duration = Duration::from_secs(15);
 
-fn now_epoch_s() -> i64 {
+pub(crate) fn now_epoch_s() -> i64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
 }
 

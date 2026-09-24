@@ -23,8 +23,9 @@ patch="$(printf '%s' "$input" | jq -c --argjson ppid "${PPID:-null}" --argjson n
     rate_limits: .rate_limits,
     context_window: .context_window,
     cost: .cost
-  }
-}' 2>/dev/null)"
+  },
+  cwd: (.workspace.current_dir // .cwd // null)
+} | if .cwd == null then del(.cwd) else . end' 2>/dev/null)"
 
 if [ -n "$patch" ]; then
   zofia_merge_state "$session_id" "$patch"

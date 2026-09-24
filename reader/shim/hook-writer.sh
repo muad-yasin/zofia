@@ -21,8 +21,9 @@ patch="$(printf '%s' "$input" | jq -c --argjson ppid "${PPID:-null}" --argjson n
     notification_type: (.notification_type // null),
     end_reason: (.end_reason // null),
     start_reason: (.start_reason // null)
-  }
-}' 2>/dev/null)"
+  },
+  cwd: (.cwd // null)
+} | if .cwd == null then del(.cwd) else . end' 2>/dev/null)"
 
 if [ -n "$patch" ]; then
   zofia_merge_state "$session_id" "$patch"

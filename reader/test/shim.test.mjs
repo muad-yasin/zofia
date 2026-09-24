@@ -182,3 +182,23 @@ test("a hook write gives up after ~2s on a held lock and exits 0", async () => {
     await assert.rejects(stat(path.join(dir, "sess-lock.json")), "the timed-out update was dropped");
   });
 });
+
+// Quality check Q3: the corner picker names a session by its folder, so both writers keep
+// the cwd, and a hook event without one never blanks the one the statusline recorded.
+test("both writers record the session's cwd; a payload without one keeps the last", async () => {
+  await withSessionsDir(async (dir) => {
+    const env = { ZOFIA_SESSIONS_DIR: dir };
+    await runScript("hook-writer.sh", JSON.stringify({ session_id: "sess-cwd", hook_event_name: "SessionStart", cwd: "/home/u/Projects/Zofia" }), env);
+    let state = JSON.parse(await readFile(path.join(dir, "sess-cwd.json"), "utf8"));
+    assert.equal(state.cwd, "/home/u/Projects/Zofia");
+
+    await runScript("statusline-wrapper.sh", JSON.stringify({ session_id: "sess-cwd", workspace: { current_dir: "/home/u/Projects/SMO" } }), env);
+    state = JSON.parse(await readFile(path.join(dir, "sess-cwd.json"), "utf8"));
+    assert.equal(state.cwd, "/home/u/Projects/SMO");
+
+    await runScript("hook-writer.sh", JSON.stringify({ session_id: "sess-cwd", hook_event_name: "Stop" }), env);
+    state = JSON.parse(await readFile(path.join(dir, "sess-cwd.json"), "utf8"));
+    assert.equal(state.cwd, "/home/u/Projects/SMO");
+    assert.equal(state.latest_hook_event.hook_event_name, "Stop");
+  });
+});

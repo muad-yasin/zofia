@@ -218,6 +218,67 @@ body {
   border-color: var(--gold-bright);
 }
 
+/* Q3: the detected-session picker in an empty corner. */
+.assign-form .picker-hint {
+  font-style: normal;
+  font-size: 0.8125rem;
+  color: var(--text-tertiary);
+}
+
+.session-picker {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: min(100%, 22rem);
+}
+
+#shell[data-center="open"] .session-picker {
+  max-width: 58%;
+  min-width: min(100%, 14rem);
+}
+
+.session-picker .pick {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+  padding: var(--sp-2) var(--sp-3);
+  min-height: 2.5rem;
+  text-align: left;
+}
+
+.session-picker .pick-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.session-picker .pick-detail {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.corner.empty[data-side="right"] .session-picker .pick {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.assign-form details summary {
+  cursor: pointer;
+  font-size: 0.8125rem;
+  color: var(--text-tertiary);
+}
+
+.assign-form details[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
 .corner h2 {
   font-family: var(--font-chrome);
   font-size: 0.9375rem;
@@ -281,6 +342,7 @@ body {
 .corner.empty[data-side="right"] { align-items: flex-end; }
 .corner.empty[data-row="top"] { justify-content: flex-start; }
 .corner.empty[data-row="bottom"] { justify-content: flex-end; }
+.corner.empty .assign-form { align-self: stretch; }
 .corner.empty[data-side="left"] .assign-form { align-items: flex-start; }
 .corner.empty[data-side="right"] .assign-form { align-items: flex-end; }
 

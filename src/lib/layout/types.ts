@@ -30,6 +30,18 @@ export interface SessionSnapshot {
   lastActiveTime: Field<number>;
 }
 
+/** A session the shim has written state for, offered in an empty corner's picker
+ * (quality check Q3). Mirrors src-tauri/src/detect.rs's `DetectedSession`. */
+export interface DetectedSession {
+  session_id: string;
+  cwd: string | null;
+  /** The cwd's folder name, or "session <first 8 chars of the id>". */
+  project: string;
+  activity: string | null;
+  last_active: number | null;
+  model: string | null;
+}
+
 /** A corner slot: 0-3, fixed regardless of viewport or session count (PLAN.md §4). */
 export type CornerIndex = 0 | 1 | 2 | 3;
 

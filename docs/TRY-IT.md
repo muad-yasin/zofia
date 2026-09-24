@@ -38,16 +38,20 @@ note its text.
 
 ## 4. Watch a session in a corner
 
-The corners read the state files the reader shim writes (installed 2026-09-22). One
-file per session:
+The corners read the state files the reader shim writes (installed 2026-09-22), one per
+Claude Code session. Every empty corner lists the sessions it has found, newest first,
+named by their folder (`SMO`, `Zofia`; two sessions in one folder get the id's first four
+characters too), with what each is doing and when it last did something. Click one to
+show it in that corner. A session started before 2026-09-24's shim update shows as
+"session 1a2b3c4d" until its next event records its folder.
 
-    ls "$XDG_RUNTIME_DIR/zofia/sessions/"
+"Paste a session id instead" still takes an id by hand: the file names in
+`$XDG_RUNTIME_DIR/zofia/sessions/`, without `.json`.
 
-Each file name is a session_id. Paste one, without `.json`, into a corner's `session_id`
-box and click Assign. The corner fills in at once from that session's latest state, then
-updates on each new event and re-checks every 15 seconds. Fields Zofia can't read are marked `UNKNOWN`
-and are never guessed. Assignments are not saved yet, so after a restart you assign
-them again.
+The corner fills in at once from that session's latest state, then updates on each new
+event and re-checks every 15 seconds. Fields Zofia can't read are marked `UNKNOWN` and
+are never guessed. Assignments come back after a restart of Zofia, until the next reboot;
+"Clear all corners" forgets them.
 
 Zofia only reads these files. It never types into, restarts, or stops a corner session.
 

@@ -151,7 +151,8 @@ test("all five panes (top bar controls + visible corners + center) are reachable
     const order = [];
     // Walk focus forward from the top of the document.
     await page.evaluate(() => (document.activeElement).blur?.());
-    for (let i = 0; i < 8; i++) {
+    // 14 stops: the empty corner now holds its picker buttons and the paste toggle (Q3).
+    for (let i = 0; i < 14; i++) {
       await page.keyboard.press("Tab");
       const info = await page.evaluate(() => {
         const el = document.activeElement;
@@ -244,8 +245,8 @@ test("assigning a session_id to the empty corner moves it out of 'no session ass
     assert.ok(emptyCorner, "expected an empty corner 3");
     assert.match((await emptyCorner.textContent()) ?? "", /no session assigned/);
 
-    await emptyCorner.$eval("input", (el) => (el.value = "test-session-abc"));
-    await emptyCorner.$eval("button", (el) => el.click());
+    await emptyCorner.$eval(".paste input", (el) => (el.value = "test-session-abc"));
+    await emptyCorner.$eval(".paste button", (el) => el.click());
 
     const afterText = await page.$eval('[data-corner="3"]', (el) => el.textContent || "");
     assert.doesNotMatch(afterText, /no session assigned/, "corner should no longer show the empty-slot placeholder");
@@ -272,6 +273,7 @@ const TAURI_MOCK = (responses = {}) => {
       window.__zofiaTest.calls.push([cmd, args]);
       if (cmd === "plugin:event|listen" && args.event === "zofia://snapshot") window.__zofiaTest.snapshotHandler = args.handler;
       if (cmd === "assignments_get") return responses.assignments_get ?? [];
+      if (cmd === "detected_sessions") return responses.detected_sessions ?? [];
       return null;
     },
   };
@@ -385,6 +387,58 @@ test("saved assignments are restored, marked, and cleared by Clear all", async (
     const after = await page.evaluate(() => window.__zofiaTest.calls.map(([c]) => c));
     assert.ok(after.includes("assignments_clear") && after.includes("unregister_all_sessions"), JSON.stringify(after));
     assert.equal(await page.$eval(".clear-all", (b) => b.disabled), true, "nothing left to clear");
+  } finally {
+    await page.close();
+  }
+});
+
+// Quality check Q3 (2026-09-23): assigning a corner meant pasting a UUID out of `ls`. An
+// empty corner now offers the sessions the shim has seen, named by folder, one click each.
+test("an empty corner offers detected sessions by folder, and one click assigns one", async () => {
+  const page = await newPageAt(1280, 800); // sample path: SAMPLE_DETECTED, no backend
+  try {
+    const picks = await page.$$eval('[data-corner="3"] .pick', (els) => els.map((el) => el.querySelector(".pick-name").textContent));
+    assert.deepEqual(picks, ["THCMCP", "SMO · 2f9d", "SMO · b83a"], "folders name the sessions; a shared folder adds the id's first 4 chars");
+    const detail = await page.textContent('[data-corner="3"] .pick .pick-detail');
+    assert.match(detail, /waiting for input · Opus 5\.5 · \d+s ago/);
+    assert.equal(await page.$eval('[data-corner="3"] details.paste', (d) => d.open), false, "the paste box is the fallback, closed");
+
+    await page.click('[data-corner="3"] .pick[data-session-id^="2f9d"]');
+    assert.equal(await page.textContent('[data-corner="3"] h2'), "SMO · 2f9d");
+    assert.match(await page.textContent('[data-corner="3"]'), /no snapshot yet/);
+  } finally {
+    await page.close();
+  }
+});
+
+test("live: a picked session is registered and saved under its folder name; taken ones leave the list", async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const detected_sessions = [
+    { session_id: "sess-zofia", cwd: "/home/u/Projects/Zofia", project: "Zofia", activity: "ready", last_active: now - 5, model: null },
+    { session_id: "sess-smo", cwd: "/home/u/Projects/SMO", project: "SMO", activity: "idle", last_active: now - 90, model: "Sonnet 5" },
+  ];
+  const page = await newLivePageAt(1280, 800, { detected_sessions });
+  try {
+    await page.waitForSelector('[data-corner="0"] .pick');
+    await page.click('[data-corner="0"] .pick[data-session-id="sess-smo"]');
+    await page.waitForSelector('[data-corner="0"] h2');
+    assert.equal(await page.textContent('[data-corner="0"] h2'), "SMO");
+    const calls = await page.evaluate(() => window.__zofiaTest.calls);
+    assert.ok(calls.some(([c, a]) => c === "register_session" && a.sessionId === "sess-smo"));
+    assert.deepEqual(calls.find(([c]) => c === "assignment_set")?.[1], { corner: 0, sessionId: "sess-smo", label: "SMO" });
+    const left = await page.$$eval('[data-corner="1"] .pick', (els) => els.map((el) => el.dataset.sessionId));
+    assert.deepEqual(left, ["sess-zofia"], "an assigned session is not offered again");
+  } finally {
+    await page.close();
+  }
+});
+
+test("live: with no session detected, the corner says so and opens the paste box", async () => {
+  const page = await newLivePageAt(1280, 800);
+  try {
+    await page.waitForSelector('[data-corner="0"] .picker-hint');
+    assert.match(await page.textContent('[data-corner="0"] .picker-hint'), /No Claude Code session found yet/);
+    assert.equal(await page.$eval('[data-corner="0"] details.paste', (d) => d.open), true);
   } finally {
     await page.close();
   }

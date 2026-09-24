@@ -1,8 +1,8 @@
 import { GridShell } from "./lib/layout/GridShell.js";
 import { PaneRegistry } from "./lib/layout/paneRegistry.js";
-import { SAMPLE_SESSIONS } from "./lib/layout/sampleData.js";
+import { SAMPLE_DETECTED, SAMPLE_SESSIONS } from "./lib/layout/sampleData.js";
 import { mountCenterSeat } from "./lib/center/centerSeat.js";
-import { isTauriRuntime, listenForLiveSnapshots, registerLiveSession } from "./lib/reader/liveWiring.js";
+import { isTauriRuntime, listDetectedSessions, listenForLiveSnapshots, registerLiveSession } from "./lib/reader/liveWiring.js";
 import { clearAssignments, loadAssignments, saveAssignment } from "./lib/reader/assignments.js";
 import type { CornerIndex } from "./lib/layout/types.js";
 
@@ -19,18 +19,18 @@ if (!isTauriRuntime()) {
   registry.registerToCorner(2, { sessionId: SAMPLE_SESSIONS[2].session_id, label: "sample-3 (idle)", snapshot: SAMPLE_SESSIONS[2] });
 }
 // Running for real: all four corners start empty. Registration is explicit, never
-// automatic discovery (PLAN.md §2.1) — the owner assigns a real session_id to each
-// corner by hand via the "Assign" control GridShell renders for an empty slot.
+// automatic discovery (PLAN.md §2.1) — the owner picks a detected session (or pastes an
+// id) for each corner in the control GridShell renders for an empty slot.
 
 const root = document.getElementById("app");
 if (!root) throw new Error("#app root element missing from index.html");
 
 let shell: GridShell;
-const onAssignSession = (corner: CornerIndex, sessionId: string) => {
-  registry.registerToCorner(corner, { sessionId, label: sessionId, snapshot: null });
+const onAssignSession = (corner: CornerIndex, sessionId: string, label: string) => {
+  registry.registerToCorner(corner, { sessionId, label, snapshot: null });
   shell.refresh();
   void registerLiveSession(sessionId);
-  saveAssignment(corner, sessionId, sessionId).catch(reportWiringError("Saving the corner assignment"));
+  saveAssignment(corner, sessionId, label).catch(reportWiringError("Saving the corner assignment"));
 };
 
 // Option B: forget every saved assignment and stop reading those sessions.
@@ -62,6 +62,20 @@ async function restoreAssignments(): Promise<void> {
     await registerLiveSession(a.session_id);
   }
   shell.refresh();
+}
+
+// The empty corners' picker (quality check Q3): the sessions the shim has seen, refreshed
+// every 5 s while any corner is empty. Sample sessions outside Tauri.
+if (isTauriRuntime()) {
+  const refreshDetected = () => {
+    if (registry.getCorners().every((c) => c !== null)) return;
+    listDetectedSessions().then((list) => shell.setDetected(list)).catch((err) => console.error("[zofia] listing sessions failed", err));
+  };
+  refreshDetected();
+  setInterval(refreshDetected, 5000);
+  window.addEventListener("focus", refreshDetected);
+} else {
+  shell.setDetected(SAMPLE_DETECTED);
 }
 
 listenForLiveSnapshots(registry, shell)

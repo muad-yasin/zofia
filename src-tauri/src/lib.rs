@@ -9,6 +9,7 @@
 
 mod assignments;
 mod center_seat;
+mod detect;
 mod hash_sweep;
 mod provider_guard;
 mod pty_seat;
@@ -26,6 +27,7 @@ pub fn run() {
         .manage(center_seat::CenterSeat::default())
         .invoke_handler(tauri::generate_handler![
             watcher::register_session,
+            detect::detected_sessions,
             watcher::unregister_all_sessions,
             assignments::assignments_get,
             assignments::assignment_set,

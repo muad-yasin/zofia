@@ -7,7 +7,7 @@
 
 import type { GridShell } from "../layout/GridShell.js";
 import type { PaneRegistry } from "../layout/paneRegistry.js";
-import type { SessionSnapshot } from "../layout/types.js";
+import type { DetectedSession, SessionSnapshot } from "../layout/types.js";
 
 export function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -25,6 +25,14 @@ export async function registerLiveSession(sessionId: string): Promise<void> {
   if (!isTauriRuntime()) return;
   const { invoke } = await import("@tauri-apps/api/core");
   await invoke("register_session", { sessionId });
+}
+
+/** The sessions the shim has written state for, newest first (src-tauri/src/detect.rs),
+ * for an empty corner's picker. Empty outside Tauri. */
+export async function listDetectedSessions(): Promise<DetectedSession[]> {
+  if (!isTauriRuntime()) return [];
+  const { invoke } = await import("@tauri-apps/api/core");
+  return (await invoke<DetectedSession[] | null>("detected_sessions")) ?? [];
 }
 
 /** Subscribes once to the backend's snapshot event, routing each one into the registry
