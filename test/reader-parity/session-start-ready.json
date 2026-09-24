@@ -1,0 +1,69 @@
+{
+  "description": "Q2: a new session waits for its first prompt",
+  "now": 1790000000,
+  "alive_pids": [
+    100
+  ],
+  "state": {
+    "pid": 100,
+    "latest_hook_event": {
+      "observed_at": 1789995000,
+      "hook_event_name": "SessionStart",
+      "tool_name": null,
+      "notification_type": null,
+      "end_reason": null
+    }
+  },
+  "expected": {
+    "model": {
+      "value": null,
+      "availability": "unknown",
+      "observed_at": null
+    },
+    "effort": {
+      "value": null,
+      "availability": "unknown",
+      "observed_at": null
+    },
+    "usagePercent": {
+      "value": null,
+      "availability": "unknown",
+      "observed_at": null
+    },
+    "resetTimer": {
+      "value": null,
+      "availability": "unknown",
+      "observed_at": null
+    },
+    "contextPercent": {
+      "value": null,
+      "availability": "unknown",
+      "observed_at": null
+    },
+    "activityState": {
+      "value": "ready",
+      "availability": "approximable",
+      "observed_at": 1789995000
+    },
+    "durationLine": {
+      "value": null,
+      "availability": "unknown",
+      "observed_at": null
+    },
+    "lastActiveTime": {
+      "value": 1789995000,
+      "availability": "exposed",
+      "observed_at": 1789995000
+    },
+    "tokenSpend.usd": {
+      "value": null,
+      "availability": "unknown",
+      "observed_at": null
+    },
+    "tokenSpend.tokens": {
+      "value": null,
+      "availability": "unknown",
+      "observed_at": null
+    }
+  }
+}

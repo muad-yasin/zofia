@@ -780,6 +780,43 @@ pub(crate) mod tests {
         assert_eq!(snap.activity_state.value, Some("ready".to_string()));
     }
 
+    // Quality check Q10: the shared corpus in test/reader-parity/, which the Node reader's
+    // reader/test/parity.test.mjs checks too. value, availability and observed_at of every
+    // field must match `expected`; `source` is prose and not compared. Numbers compare as
+    // f64, since Rust writes 18.0 where Node writes 18.
+    #[test]
+    fn parity_corpus() {
+        fn norm(v: &serde_json::Value) -> serde_json::Value {
+            use serde_json::Value;
+            match v {
+                Value::Number(n) => Value::from(n.as_f64().unwrap()),
+                Value::Array(a) => Value::Array(a.iter().map(norm).collect()),
+                Value::Object(o) => Value::Object(o.iter().map(|(k, v)| (k.clone(), norm(v))).collect()),
+                other => other.clone(),
+            }
+        }
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../test/reader-parity");
+        let mut files: Vec<_> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "json")).collect();
+        files.sort();
+        assert!(files.len() >= 10, "only {} cases in {}", files.len(), dir.display());
+        for file in files {
+            let case: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+            let now = case["now"].as_i64().unwrap();
+            let alive: Vec<u32> = case["alive_pids"].as_array().unwrap().iter().map(|p| p.as_u64().unwrap() as u32).collect();
+            let raw = if case["state"].is_null() { None } else { Some(parse_session_state(&case["state"].to_string()).unwrap()) };
+            let snap = serde_json::to_value(derive_snapshot("parity", raw.as_ref(), now, &|pid| alive.contains(&pid))).unwrap();
+            let pick = |f: &serde_json::Value| serde_json::json!({ "value": f["value"], "availability": f["availability"], "observed_at": f["observed_at"] });
+            let mut got = serde_json::Map::new();
+            for k in ["model", "effort", "usagePercent", "resetTimer", "contextPercent", "activityState", "durationLine", "lastActiveTime"] {
+                got.insert(k.into(), pick(&snap[k]));
+            }
+            got.insert("tokenSpend.usd".into(), pick(&snap["tokenSpend"]["usd"]));
+            got.insert("tokenSpend.tokens".into(), pick(&snap["tokenSpend"]["tokens"]));
+            let got = serde_json::Value::Object(got);
+            assert_eq!(norm(&got), norm(&case["expected"]), "{}: {}", file.display(), case["description"]);
+        }
+    }
+
     // C4: no debug strings in the headline. Mirrors the Node reader's test.
     #[test]
     fn activity_unlisted_notification_or_event_reads_plainly() {

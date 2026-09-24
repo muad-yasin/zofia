@@ -1,0 +1,100 @@
+{
+  "description": "Q5: after Stop, worked for (Stop - start), observed_at = the Stop",
+  "now": 1790000000,
+  "alive_pids": [
+    100
+  ],
+  "state": {
+    "pid": 100,
+    "turn_started_at": 1789999600,
+    "latest_statusline": {
+      "observed_at": 1789999990,
+      "model": {
+        "id": "claude-sonnet-5",
+        "display_name": "Sonnet 5"
+      },
+      "effort": {
+        "level": "medium"
+      },
+      "rate_limits": {
+        "five_hour": {
+          "used_percentage": 37.4,
+          "resets_at": 1790003600
+        }
+      },
+      "context_window": {
+        "used_percentage": 18,
+        "total_input_tokens": 1000,
+        "total_output_tokens": 50
+      },
+      "cost": {
+        "total_cost_usd": 0.84
+      }
+    },
+    "latest_hook_event": {
+      "observed_at": 1789999723,
+      "hook_event_name": "Stop",
+      "tool_name": null,
+      "notification_type": null,
+      "end_reason": null
+    }
+  },
+  "expected": {
+    "model": {
+      "value": {
+        "id": "claude-sonnet-5",
+        "display_name": "Sonnet 5"
+      },
+      "availability": "exposed",
+      "observed_at": 1789999990
+    },
+    "effort": {
+      "value": "medium",
+      "availability": "exposed",
+      "observed_at": 1789999990
+    },
+    "usagePercent": {
+      "value": 37.4,
+      "availability": "exposed",
+      "observed_at": 1789999990
+    },
+    "resetTimer": {
+      "value": 1790003600,
+      "availability": "exposed",
+      "observed_at": 1789999990
+    },
+    "contextPercent": {
+      "value": 18,
+      "availability": "exposed",
+      "observed_at": 1789999990
+    },
+    "activityState": {
+      "value": "idle",
+      "availability": "approximable",
+      "observed_at": 1789999723
+    },
+    "durationLine": {
+      "value": "worked for 2m 3s",
+      "availability": "approximable",
+      "observed_at": 1789999723
+    },
+    "lastActiveTime": {
+      "value": 1789999990,
+      "availability": "exposed",
+      "observed_at": 1789999990
+    },
+    "tokenSpend.usd": {
+      "value": 0.84,
+      "availability": "exposed",
+      "observed_at": 1789999990
+    },
+    "tokenSpend.tokens": {
+      "value": {
+        "input_tokens": 1000,
+        "output_tokens": 50
+      },
+      "availability": "approximable",
+      "observed_at": 1789999990
+    }
+  }
+}

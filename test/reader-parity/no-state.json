@@ -1,0 +1,58 @@
+{
+  "description": "a registered session with no state file at all",
+  "now": 1790000000,
+  "alive_pids": [],
+  "state": null,
+  "expected": {
+    "model": {
+      "value": null,
+      "availability": "unknown",
+      "observed_at": null
+    },
+    "effort": {
+      "value": null,
+      "availability": "unknown",
+      "observed_at": null
+    },
+    "usagePercent": {
+      "value": null,
+      "availability": "unknown",
+      "observed_at": null
+    },
+    "resetTimer": {
+      "value": null,
+      "availability": "unknown",
+      "observed_at": null
+    },
+    "contextPercent": {
+      "value": null,
+      "availability": "unknown",
+      "observed_at": null
+    },
+    "activityState": {
+      "value": null,
+      "availability": "unknown",
+      "observed_at": null
+    },
+    "durationLine": {
+      "value": null,
+      "availability": "unknown",
+      "observed_at": null
+    },
+    "lastActiveTime": {
+      "value": null,
+      "availability": "unknown",
+      "observed_at": null
+    },
+    "tokenSpend.usd": {
+      "value": null,
+      "availability": "unknown",
+      "observed_at": null
+    },
+    "tokenSpend.tokens": {
+      "value": null,
+      "availability": "unknown",
+      "observed_at": null
+    }
+  }
+}
