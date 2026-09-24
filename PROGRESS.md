@@ -363,3 +363,20 @@ Rebuilt with `--effort medium` in the seat's argv (sha256 `c5e96c2d…`). Clean-
 passed 9/9 on the FUSE path and 9/9 on extract-and-run. Real-window live tests 12/12.
 `docs/TRY-IT.md` notes the effort flag. The pane shows only the model.
 
+
+## 2026-09-24 — quality-check fixes Q1-Q3 (owner's go: "Let's take care of #1 now")
+
+**Done, tested, pushed.** From `Review/QualityCheck_Deep_2026-09-23.md`'s three HIGHs:
+
+- **Q1** (`d66286f`): corner values anchored to the outer edge, clear of the center seat;
+  the seat opens at the 40% ceiling with a resize grip. e2e checks no value or assign
+  control sits under the seat at 1280x800 and 1400x900.
+- **Q2** (`38ea196`): both readers. A non-terminal state shows its elapsed time
+  (`running tool: Bash · 4m 10s`) and never reads "stale" while the owning pid is alive;
+  `SessionStart` reads `ready`. The deep check's suspected pid defect is ruled out: in 4
+  live sessions the recorded pid is the `claude` process.
+- **Q3** (`b50f55e`, `2f104d6`): the shim records each session's cwd; empty corners list
+  detected sessions by folder, one click to assign; paste-an-id stays as a fallback.
+- Evidence: cargo 82/82, reader 47/47, e2e 17/17, lint 6/6; AppImage rebuilt at `b50f55e`,
+  live gaps 16/16 (picker via the real Rust backend), smoke 9/9 x2.
+- Still open from that report: Q4-Q8 and the copy items (C1-C4), not started.
