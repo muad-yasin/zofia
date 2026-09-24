@@ -555,9 +555,10 @@ fn activity_label_for_event(hook: &RawHookEvent) -> String {
         "Notification" => match hook.notification_type.as_deref() {
             Some("agent_needs_input") | Some("permission_prompt") | Some("idle_prompt") | Some("elicitation_dialog") => "waiting for input".to_string(),
             Some("agent_completed") => "idle".to_string(),
-            other => format!("notification: {}", other.unwrap_or("unknown")),
+            Some(other) => format!("notification ({other})"),
+            None => "notification".to_string(),
         },
-        other => format!("stale (unrecognized event: {other})"),
+        other => format!("last event: {other}"),
     }
 }
 
@@ -777,6 +778,25 @@ pub(crate) mod tests {
             latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "SessionStart".into(), tool_name: None, notification_type: None, end_reason: None }), type_mismatches: Vec::new(), cwd: None, turn_started_at: None };
         let snap = derive_snapshot("s1", Some(&raw), 1000 + 10_000, &alive);
         assert_eq!(snap.activity_state.value, Some("ready".to_string()));
+    }
+
+    // C4: no debug strings in the headline. Mirrors the Node reader's test.
+    #[test]
+    fn activity_unlisted_notification_or_event_reads_plainly() {
+        let at = |name: &str, nt: Option<&str>| {
+            let raw = RawSessionState {
+                pid: None,
+                latest_statusline: None,
+                latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: name.into(), tool_name: None, notification_type: nt.map(Into::into), end_reason: None }),
+                type_mismatches: Vec::new(),
+                cwd: None,
+                turn_started_at: None,
+            };
+            derive_snapshot("s1", Some(&raw), 1000, &alive).activity_state.value.unwrap()
+        };
+        assert_eq!(at("Notification", Some("auth_success")), "notification (auth_success) · 0s");
+        assert_eq!(at("Notification", None), "notification · 0s");
+        assert_eq!(at("SubagentStop", None), "last event: SubagentStop · 0s");
     }
 
     #[test]

@@ -139,7 +139,7 @@ function showForeignSettingsDialog(host: HTMLElement, info: ForeignSettingsInfo,
 
   const intro = document.createElement("p");
   intro.textContent =
-    "This directory has its own Claude Code settings. They merge with the center seat's policy and can widen it. Review before launching.";
+    "This folder has its own Claude Code settings. The center seat launches with --restricted, which Claude Code documents as ignoring them, and with no MCP servers, so they should not widen its policy; item 8's probe hasn't measured that yet. Review them before launching.";
   dialog.append(intro);
 
   for (const [name, text] of [

@@ -60,7 +60,7 @@ pub struct CenterSeat(Mutex<Option<PtySeat>>);
 pub fn resolve_command(configured: Option<String>) -> Result<String, String> {
     let Some(cmd) = configured.filter(|c| !c.trim().is_empty()) else {
         return Err(format!(
-            "no center-seat command: the real claude CLI is gated on HANDOFF item 8; set {CENTER_COMMAND_ENV} to a mock"
+            "The center seat is off until item 8 is cleared: your clearance file, docs/ITEM-8-CHECKLIST.md. The corners work normally. (For testing, {CENTER_COMMAND_ENV} can name the committed mock.)"
         ));
     };
     if REAL_CLI_ALLOWED {

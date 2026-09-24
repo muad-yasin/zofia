@@ -250,9 +250,9 @@ function activityLabelForEvent(hook) {
       if (hook.notification_type === "agent_completed") {
         return "idle";
       }
-      return `notification: ${hook.notification_type ?? "unknown"}`;
+      return hook.notification_type ? `notification (${hook.notification_type})` : "notification";
     default:
-      return `stale (unrecognized event: ${hook.hook_event_name})`;
+      return `last event: ${hook.hook_event_name}`;
   }
 }
 

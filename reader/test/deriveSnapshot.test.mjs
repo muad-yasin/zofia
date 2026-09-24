@@ -167,3 +167,11 @@ test("every field in a fully-populated snapshot carries all four provenance keys
     }
   }
 });
+
+// Quality check C4: no debug strings in the headline.
+test("activity state: an unlisted notification or event reads plainly, not as a debug string", () => {
+  const at = (hook) => deriveSnapshot({ latest_statusline: null, latest_hook_event: { observed_at: 1000, ...hook }, pid: null }, { now: 1000 }).activityState.value;
+  assert.equal(at({ hook_event_name: "Notification", notification_type: "auth_success" }), "notification (auth_success) · 0s");
+  assert.equal(at({ hook_event_name: "Notification" }), "notification · 0s");
+  assert.equal(at({ hook_event_name: "SubagentStop" }), "last event: SubagentStop · 0s");
+});
