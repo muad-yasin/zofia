@@ -2,10 +2,15 @@ import type { CornerIndex, DetectedSession, RegisteredSession } from "./types.js
 import { buildCompactCard, buildFullCard, fmtAbsolute, fmtRelative, refreshRelativeTimes } from "./cardView.js";
 import type { PaneRegistry } from "./paneRegistry.js";
 
-const BREAKPOINT_FULL = 1280;
-const BREAKPOINT_MEDIUM = 900;
 const PANE_FLOOR_WIDTH = 480;
 const PANE_FLOOR_HEIGHT = 320;
+const GRID_GAP_PX = 12; // #corner-grid's gap and padding, 0.75rem at the default 16 px root
+// Quality check Q7 (2026-09-24): the full 2x2 grid shows as soon as two corners fit side by
+// side at the pane floor (2 x 480 + 3 gaps = 996 px), not from a fixed 1280, which dropped
+// two corners that would fit. Both numbers stay placeholders until the owner measures his
+// screen (PLAN.md §10 decision 3); this only ties the breakpoint to the floor.
+const BREAKPOINT_FULL = 2 * PANE_FLOOR_WIDTH + 3 * GRID_GAP_PX;
+const BREAKPOINT_MEDIUM = 900;
 const ARIA_LIVE_THROTTLE_MS = 2000; // PLAN.md §4: max 1 announcement per 2s
 
 type Breakpoint = "full" | "medium" | "compact";

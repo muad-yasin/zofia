@@ -575,3 +575,12 @@ decision-2 entry above. That entry is left as written.
 **Still UNKNOWN:** which levels each model accepts, and what any level costs.
 `effort_levels` stays `UNKNOWN` for every model.
 
+
+## 2026-09-24 — the full-grid breakpoint follows the pane floor (quality check Q7)
+
+The owner said go on the quality check's medium items ("Let's start with them then"). Q7
+showed `BREAKPOINT_FULL = 1280` dropping two corners that fit: at 1024 px both remaining
+panes were ~490 px wide. The breakpoint is now derived, `2 × PANE_FLOOR_WIDTH + 3 × gap`
+(996 px), so the 2×2 grid shows whenever two corners fit side by side at the floor. The
+480×320 floor and the 900 px medium breakpoint are unchanged, and all three stay PLAN.md
+§4 placeholders: §10 decision 3 (the owner measuring his screen) still replaces them.

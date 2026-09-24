@@ -112,8 +112,25 @@ test("1280x800 and 1400x900: the center seat opens at the 40% ceiling and covers
   }
 });
 
-test("1024x768: medium breakpoint collapses to a 2-pane window plus a visible tab strip", async () => {
+// Q7: four corners fit from 2 x 480 + 3 x 12 = 996 px, so 1024 is a full grid now.
+test("1024x768: all four corners, no tab strip, nothing under the center seat", async () => {
   const page = await newPageAt(1024, 768);
+  try {
+    assert.equal(await page.$$eval("#corner-grid > .corner", (els) => els.length), 4);
+    assert.equal(await page.$eval("#tab-strip", (el) => el.hidden), true);
+    const center = await page.$eval("#center-pane", (el) => el.getBoundingClientRect().toJSON());
+    const covered = await page.$$eval(".corner .full-card .field-row > span, .corner .activity-headline, .corner .assign-form > *", (els, c) =>
+      els.filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.left < c.right && r.right > c.left && r.top < c.bottom && r.bottom > c.top; })
+        .map((el) => el.textContent), center);
+    assert.deepEqual(covered, []);
+    await page.screenshot({ path: path.join(ROOT, "test/e2e/screenshots/1024x768.png") });
+  } finally {
+    await page.close();
+  }
+});
+
+test("960x720: medium breakpoint collapses to a 2-pane window plus a visible tab strip", async () => {
+  const page = await newPageAt(960, 720);
   try {
     const visibleCorners = await page.$$eval("#corner-grid > .corner", (els) => els.length);
     assert.equal(visibleCorners, 2, "expected exactly 2 visible corner panes at the medium breakpoint");
@@ -124,7 +141,7 @@ test("1024x768: medium breakpoint collapses to a 2-pane window plus a visible ta
     const tabCount = await page.$$eval("#tab-strip [role=tab]", (els) => els.length);
     assert.equal(tabCount, 4, "tab strip should list all 4 fixed corner slots");
 
-    await page.screenshot({ path: path.join(ROOT, "test/e2e/screenshots/1024x768.png") });
+    await page.screenshot({ path: path.join(ROOT, "test/e2e/screenshots/960x720.png") });
   } finally {
     await page.close();
   }
