@@ -202,3 +202,17 @@ test("both writers record the session's cwd; a payload without one keeps the las
     assert.equal(state.latest_hook_event.hook_event_name, "Stop");
   });
 });
+
+test("hook-writer.sh records turn_started_at on UserPromptSubmit only, and later events keep it", async () => {
+  await withSessionsDir(async (dir) => {
+    const env = { ZOFIA_SESSIONS_DIR: dir };
+    const read = async () => JSON.parse(await readFile(path.join(dir, "sess-turn.json"), "utf8"));
+    await runScript("hook-writer.sh", JSON.stringify({ session_id: "sess-turn", hook_event_name: "SessionStart" }), env);
+    assert.equal((await read()).turn_started_at, undefined);
+    await runScript("hook-writer.sh", JSON.stringify({ session_id: "sess-turn", hook_event_name: "UserPromptSubmit" }), env);
+    const start = (await read()).turn_started_at;
+    assert.equal(typeof start, "number");
+    await runScript("hook-writer.sh", JSON.stringify({ session_id: "sess-turn", hook_event_name: "Stop" }), env);
+    assert.equal((await read()).turn_started_at, start);
+  });
+});

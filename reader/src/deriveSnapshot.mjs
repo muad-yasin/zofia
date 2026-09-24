@@ -51,7 +51,7 @@ export function deriveSnapshot(raw, opts = {}) {
     resetTimer: deriveRateLimitReset(sl),
     contextPercent: deriveContextPercent(sl),
     activityState: deriveActivityState(hook, raw.pid ?? null, now, isProcessAlive),
-    durationLine: deriveDurationLine(),
+    durationLine: deriveDurationLine(raw, hook, now, isProcessAlive),
     tokenSpend: {
       usd: deriveTokenSpendUsd(sl),
       tokens: deriveTokenSpendTokens(sl),
@@ -121,17 +121,25 @@ function deriveContextPercent(sl) {
   );
 }
 
-function deriveDurationLine() {
-  // Confirmed via Claude Code's published hooks + statusline references (2026-09-22):
-  // no documented interface exposes per-tool elapsed time ("XYZ for 49s") for a corner
-  // session. Hook payloads for PreToolUse/PostToolUse carry no duration field; statusline
-  // only has session-cumulative cost.total_duration_ms / total_api_duration_ms, not a
-  // per-call timer matching this literal line. PLAN.md §2.2's "disputed" cell is resolved:
-  // unknown for corner sessions: exposed (center seat only) is the plan's own answer for
-  // that one seat's embedded PTY, which is out of the observation bridge's scope (§4).
-  return unknownField(
-    "not exposed by statusline or hooks for a foreign corner session (Claude Code docs, checked 2026-09-22); only available via the embedded center-seat PTY (PLAN.md §2.2), out of the observation bridge's scope"
-  );
+function deriveDurationLine(raw, hook, now, isProcessAlive) {
+  // Claude Code's own spinner line ("Worked for 49s · done 14:20") is not exposed to a
+  // corner session (docs/field-availability.md row 7). Quality check Q5 (2026-09-23): the
+  // same fact is approximable from hook times the shim already sees. It records when the
+  // latest prompt was submitted (turn_started_at); the turn ends at the next Stop.
+  const start = raw.turn_started_at;
+  if (typeof start !== "number" || !hook) {
+    return unknownField("no prompt submitted since the shim began recording turn starts (2026-09-24)");
+  }
+  if (typeof raw.pid === "number" && !isProcessAlive(raw.pid)) {
+    return unknownField(`owning process pid ${raw.pid} ended; the turn's end was never observed`);
+  }
+  const source = "approximated from the shim's hook times (UserPromptSubmit to Stop), not Claude Code's own spinner line";
+  const done = hook.hook_event_name === "Stop" || (hook.hook_event_name === "Notification" && hook.notification_type === "agent_completed");
+  if (done && hook.observed_at >= start) {
+    return field(`worked for ${fmtElapsed(hook.observed_at - start)}`, AVAILABILITY.APPROXIMABLE, source, hook.observed_at);
+  }
+  if (hook.hook_event_name === "SessionEnd") return unknownField("the session ended before the turn's Stop");
+  return field(`working for ${fmtElapsed(Math.max(0, now - start))}`, AVAILABILITY.APPROXIMABLE, source, start);
 }
 
 function deriveTokenSpendUsd(sl) {

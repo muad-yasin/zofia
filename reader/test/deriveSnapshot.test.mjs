@@ -68,11 +68,19 @@ test("effort absent (model doesn't support reasoning effort) -> unknown, not def
   assert.equal(snap.effort.availability, "unknown");
 });
 
-test("durationLine is always unknown for a corner session, regardless of input", () => {
-  const raw = { latest_statusline: baseSl(), latest_hook_event: { observed_at: 1000, hook_event_name: "PreToolUse", tool_name: "Bash" }, pid: null };
-  const snap = deriveSnapshot(raw, { now: 1000 });
-  assert.equal(snap.durationLine.availability, "unknown");
-  assert.match(snap.durationLine.source, /center-seat PTY/);
+// Quality check Q5: the spec's "XYZ for 49s · done XX:YY", approximated from the hook times.
+test("durationLine: unknown until a prompt is seen; 'working for' mid-turn; 'worked for' after Stop", () => {
+  const hook = (at, name) => ({ observed_at: at, hook_event_name: name, tool_name: "Bash" });
+  const none = deriveSnapshot({ latest_statusline: baseSl(), latest_hook_event: hook(1000, "PreToolUse"), pid: null }, { now: 1000 });
+  assert.equal(none.durationLine.availability, "unknown");
+  const busy = deriveSnapshot({ latest_statusline: baseSl(), latest_hook_event: hook(1100, "PreToolUse"), turn_started_at: 1000, pid: 7 }, { now: 1250, isProcessAlive: () => true });
+  assert.equal(busy.durationLine.value, "working for 4m 10s");
+  assert.equal(busy.durationLine.availability, "approximable");
+  const done = deriveSnapshot({ latest_statusline: baseSl(), latest_hook_event: hook(1123, "Stop"), turn_started_at: 1000, pid: 7 }, { now: 5000, isProcessAlive: () => true });
+  assert.equal(done.durationLine.value, "worked for 2m 3s");
+  assert.equal(done.durationLine.observed_at, 1123);
+  const dead = deriveSnapshot({ latest_statusline: baseSl(), latest_hook_event: hook(1100, "PreToolUse"), turn_started_at: 1000, pid: 7 }, { now: 1250, isProcessAlive: () => false });
+  assert.equal(dead.durationLine.availability, "unknown");
 });
 
 test("activity state: PreToolUse -> running tool: <name>", () => {

@@ -108,6 +108,7 @@ enum Kind {
 const SCHEMA: &[(&str, Kind)] = &[
     ("/pid", Kind::Pid),
     ("/cwd", Kind::Str),
+    ("/turn_started_at", Kind::Int),
     ("/latest_statusline", Kind::Obj),
     ("/latest_statusline/observed_at", Kind::Int),
     ("/latest_statusline/model", Kind::Obj),
@@ -205,6 +206,9 @@ pub struct RawSessionState {
     /// The session's working directory, as the shim last saw it (Q3: names a session in
     /// the corner picker). Absent in state files written before 2026-09-24.
     pub cwd: Option<String>,
+    /// When the latest prompt was submitted (hook-writer.sh, 2026-09-24): the start of the
+    /// turn the duration line times.
+    pub turn_started_at: Option<i64>,
     /// Filled by `parse_session_state`, never read from the file.
     #[serde(skip)]
     pub type_mismatches: Vec<String>,
@@ -335,7 +339,7 @@ pub fn derive_snapshot(
         reset_timer: derive_rate_limit_reset(sl),
         context_percent: derive_context_percent(sl),
         activity_state: derive_activity_state(hook, raw.pid, now, is_pid_alive),
-        duration_line: derive_duration_line(),
+        duration_line: derive_duration_line(raw, hook, now, is_pid_alive),
         token_spend: TokenSpend { usd: derive_token_spend_usd(sl), tokens: derive_token_spend_tokens(sl) },
         last_active_time: derive_last_active_time(sl, hook),
     };
@@ -477,10 +481,26 @@ fn derive_context_percent(sl: Option<&RawStatusline>) -> FieldOut<f64> {
     unknown_field("statusline JSON context_window.used_percentage is null/absent early in a session or right after /compact, until the next API call (Claude Code docs)")
 }
 
-fn derive_duration_line() -> FieldOut<String> {
-    unknown_field(
-        "not exposed by statusline or hooks for a foreign corner session (Claude Code docs, checked 2026-09-22); only available via the embedded center-seat PTY (PLAN.md §2.2), out of the observation bridge's scope",
-    )
+/// Claude Code's own spinner line ("Worked for 49s · done 14:20") is not exposed to a corner
+/// session (docs/field-availability.md row 7). Quality check Q5 (2026-09-23): the same fact
+/// is approximable from hook times the shim already sees. It records when the latest prompt
+/// was submitted (`turn_started_at`); the turn ends at the next Stop. Mirrors the Node reader.
+fn derive_duration_line(raw: &RawSessionState, hook: Option<&RawHookEvent>, now: i64, is_pid_alive: &dyn Fn(u32) -> bool) -> FieldOut<String> {
+    let (Some(start), Some(hook)) = (raw.turn_started_at, hook) else {
+        return unknown_field("no prompt submitted since the shim began recording turn starts (2026-09-24)");
+    };
+    if let Some(pid) = raw.pid.filter(|p| !is_pid_alive(*p)) {
+        return unknown_field(format!("owning process pid {pid} ended; the turn's end was never observed"));
+    }
+    let source = "approximated from the shim's hook times (UserPromptSubmit to Stop), not Claude Code's own spinner line";
+    let done = hook.hook_event_name == "Stop" || (hook.hook_event_name == "Notification" && hook.notification_type.as_deref() == Some("agent_completed"));
+    if done && hook.observed_at >= start {
+        return field(format!("worked for {}", fmt_elapsed(hook.observed_at - start)), "approximable", source, Some(hook.observed_at));
+    }
+    if hook.hook_event_name == "SessionEnd" {
+        return unknown_field("the session ended before the turn's Stop");
+    }
+    field(format!("working for {}", fmt_elapsed((now - start).max(0))), "approximable", source, Some(start))
 }
 
 fn derive_token_spend_usd(sl: Option<&RawStatusline>) -> FieldOut<f64> {
@@ -631,7 +651,7 @@ pub(crate) mod tests {
 
     #[test]
     fn full_statusline_payload_exposed() {
-        let raw = RawSessionState { pid: None, latest_statusline: Some(base_sl(1000)), latest_hook_event: None, type_mismatches: Vec::new(), cwd: None };
+        let raw = RawSessionState { pid: None, latest_statusline: Some(base_sl(1000)), latest_hook_event: None, type_mismatches: Vec::new(), cwd: None, turn_started_at: None };
         let snap = derive_snapshot("s1", Some(&raw), 1000, &alive);
         assert_eq!(snap.model.availability, "exposed");
         assert_eq!(snap.model.value.unwrap().display_name, "Sonnet 5");
@@ -648,7 +668,7 @@ pub(crate) mod tests {
     fn rate_limits_absent_entirely_never_guessed() {
         let mut sl = base_sl(1000);
         sl.rate_limits = None;
-        let raw = RawSessionState { pid: None, latest_statusline: Some(sl), latest_hook_event: None, type_mismatches: Vec::new(), cwd: None };
+        let raw = RawSessionState { pid: None, latest_statusline: Some(sl), latest_hook_event: None, type_mismatches: Vec::new(), cwd: None, turn_started_at: None };
         let snap = derive_snapshot("s1", Some(&raw), 1000, &alive);
         assert_eq!(snap.usage_percent.availability, "unknown");
         assert_eq!(snap.reset_timer.availability, "unknown");
@@ -659,7 +679,7 @@ pub(crate) mod tests {
     fn rate_limits_present_but_five_hour_missing_real_idle_shape() {
         let mut sl = base_sl(1000);
         sl.rate_limits = Some(RawRateLimits { five_hour: None });
-        let raw = RawSessionState { pid: None, latest_statusline: Some(sl), latest_hook_event: None, type_mismatches: Vec::new(), cwd: None };
+        let raw = RawSessionState { pid: None, latest_statusline: Some(sl), latest_hook_event: None, type_mismatches: Vec::new(), cwd: None, turn_started_at: None };
         let snap = derive_snapshot("s1", Some(&raw), 1000, &alive);
         assert_eq!(snap.usage_percent.availability, "unknown");
         assert_eq!(snap.reset_timer.availability, "unknown");
@@ -671,20 +691,40 @@ pub(crate) mod tests {
     fn effort_absent_not_defaulted() {
         let mut sl = base_sl(1000);
         sl.effort = None;
-        let raw = RawSessionState { pid: None, latest_statusline: Some(sl), latest_hook_event: None, type_mismatches: Vec::new(), cwd: None };
+        let raw = RawSessionState { pid: None, latest_statusline: Some(sl), latest_hook_event: None, type_mismatches: Vec::new(), cwd: None, turn_started_at: None };
         let snap = derive_snapshot("s1", Some(&raw), 1000, &alive);
         assert_eq!(snap.effort.availability, "unknown");
     }
 
-    #[test]
-    fn duration_line_always_unknown() {
-        let raw = RawSessionState {
-            pid: None,
+    fn turn(start: Option<i64>, hook_at: i64, name: &str, pid: Option<u32>) -> RawSessionState {
+        RawSessionState {
+            pid,
             latest_statusline: Some(base_sl(1000)),
-            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }), type_mismatches: Vec::new(), cwd: None };
-        let snap = derive_snapshot("s1", Some(&raw), 1000, &alive);
-        assert_eq!(snap.duration_line.availability, "unknown");
-        assert!(snap.duration_line.source.contains("center-seat PTY"));
+            latest_hook_event: Some(RawHookEvent { observed_at: hook_at, hook_event_name: name.into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }),
+            type_mismatches: Vec::new(),
+            cwd: None,
+            turn_started_at: start,
+        }
+    }
+
+    // Q5: the spec's "XYZ for 49s · done XX:YY", approximated from UserPromptSubmit -> Stop.
+    #[test]
+    fn duration_line_times_the_turn() {
+        let busy = derive_snapshot("s1", Some(&turn(Some(1000), 1100, "PreToolUse", Some(7))), 1250, &alive);
+        assert_eq!(busy.duration_line.value.as_deref(), Some("working for 4m 10s"));
+        assert_eq!(busy.duration_line.availability, "approximable");
+        let done = derive_snapshot("s1", Some(&turn(Some(1000), 1123, "Stop", Some(7))), 5000, &alive);
+        assert_eq!(done.duration_line.value.as_deref(), Some("worked for 2m 3s"));
+        assert_eq!(done.duration_line.observed_at, Some(1123), "the UI prints 'done HH:MM' from the Stop time");
+    }
+
+    #[test]
+    fn duration_line_unknown_without_a_turn_start_or_after_the_process_died() {
+        let none = derive_snapshot("s1", Some(&turn(None, 1000, "PreToolUse", None)), 1000, &alive);
+        assert_eq!(none.duration_line.availability, "unknown");
+        let dead = derive_snapshot("s1", Some(&turn(Some(1000), 1100, "PreToolUse", Some(7))), 1250, &|_| false);
+        assert_eq!(dead.duration_line.availability, "unknown");
+        assert!(dead.duration_line.source.contains("pid 7 ended"));
     }
 
     #[test]
@@ -692,7 +732,7 @@ pub(crate) mod tests {
         let raw = RawSessionState {
             pid: None,
             latest_statusline: None,
-            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }), type_mismatches: Vec::new(), cwd: None };
+            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }), type_mismatches: Vec::new(), cwd: None, turn_started_at: None };
         let snap = derive_snapshot("s1", Some(&raw), 1005, &alive);
         assert_eq!(snap.activity_state.value, Some("running tool: Bash · 5s".to_string()));
         assert_eq!(snap.activity_state.availability, "approximable");
@@ -700,7 +740,7 @@ pub(crate) mod tests {
 
     #[test]
     fn activity_stop_idle_even_long_after() {
-        let raw = RawSessionState { pid: None, latest_statusline: None, latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "Stop".into(), tool_name: None, notification_type: None, end_reason: None }), type_mismatches: Vec::new(), cwd: None };
+        let raw = RawSessionState { pid: None, latest_statusline: None, latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "Stop".into(), tool_name: None, notification_type: None, end_reason: None }), type_mismatches: Vec::new(), cwd: None, turn_started_at: None };
         let snap = derive_snapshot("s1", Some(&raw), 1000 + 10_000, &alive);
         assert_eq!(snap.activity_state.value, Some("idle".to_string()));
     }
@@ -710,7 +750,7 @@ pub(crate) mod tests {
         let raw = RawSessionState {
             pid: None,
             latest_statusline: None,
-            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }), type_mismatches: Vec::new(), cwd: None };
+            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }), type_mismatches: Vec::new(), cwd: None, turn_started_at: None };
         let snap = derive_snapshot("s1", Some(&raw), 1000 + 121, &alive);
         assert_eq!(snap.activity_state.value, Some("stale · last event 2m 1s ago".to_string()));
         assert_ne!(snap.activity_state.value, Some("idle".to_string()));
@@ -722,7 +762,7 @@ pub(crate) mod tests {
         let raw = RawSessionState {
             pid: Some(4242),
             latest_statusline: None,
-            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }), type_mismatches: Vec::new(), cwd: None };
+            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }), type_mismatches: Vec::new(), cwd: None, turn_started_at: None };
         let snap = derive_snapshot("s1", Some(&raw), 1000 + 250, &alive);
         assert_eq!(snap.activity_state.value, Some("running tool: Bash · 4m 10s".to_string()));
         assert!(snap.activity_state.source.contains("pid 4242 alive"));
@@ -734,7 +774,7 @@ pub(crate) mod tests {
         let raw = RawSessionState {
             pid: None,
             latest_statusline: None,
-            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "SessionStart".into(), tool_name: None, notification_type: None, end_reason: None }), type_mismatches: Vec::new(), cwd: None };
+            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "SessionStart".into(), tool_name: None, notification_type: None, end_reason: None }), type_mismatches: Vec::new(), cwd: None, turn_started_at: None };
         let snap = derive_snapshot("s1", Some(&raw), 1000 + 10_000, &alive);
         assert_eq!(snap.activity_state.value, Some("ready".to_string()));
     }
@@ -751,14 +791,14 @@ pub(crate) mod tests {
         let raw = RawSessionState {
             pid: None,
             latest_statusline: None,
-            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }), type_mismatches: Vec::new(), cwd: None };
+            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "PreToolUse".into(), tool_name: Some("Bash".into()), notification_type: None, end_reason: None }), type_mismatches: Vec::new(), cwd: None, turn_started_at: None };
         let snap = derive_snapshot("s1", Some(&raw), 1000 + 60, &alive);
         assert_eq!(snap.activity_state.value, Some("running tool: Bash · 1m 0s".to_string()));
     }
 
     #[test]
     fn activity_dead_process_overrides_fresh_stop() {
-        let raw = RawSessionState { pid: Some(99999), latest_statusline: None, latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "Stop".into(), tool_name: None, notification_type: None, end_reason: None }), type_mismatches: Vec::new(), cwd: None };
+        let raw = RawSessionState { pid: Some(99999), latest_statusline: None, latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "Stop".into(), tool_name: None, notification_type: None, end_reason: None }), type_mismatches: Vec::new(), cwd: None, turn_started_at: None };
         let snap = derive_snapshot("s1", Some(&raw), 1001, &|_pid| false);
         assert_eq!(snap.activity_state.value, Some("ended (process not running)".to_string()));
         assert_eq!(snap.activity_state.availability, "exposed");
@@ -769,14 +809,14 @@ pub(crate) mod tests {
         let raw = RawSessionState {
             pid: None,
             latest_statusline: None,
-            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "Notification".into(), tool_name: None, notification_type: Some("agent_needs_input".into()), end_reason: None }), type_mismatches: Vec::new(), cwd: None };
+            latest_hook_event: Some(RawHookEvent { observed_at: 1000, hook_event_name: "Notification".into(), tool_name: None, notification_type: Some("agent_needs_input".into()), end_reason: None }), type_mismatches: Vec::new(), cwd: None, turn_started_at: None };
         let snap = derive_snapshot("s1", Some(&raw), 1000 + 10_000, &alive);
         assert_eq!(snap.activity_state.value, Some("waiting for input".to_string()));
     }
 
     #[test]
     fn last_active_time_picks_freshest_never_mtime() {
-        let raw = RawSessionState { pid: None, latest_statusline: Some(base_sl(500)), latest_hook_event: Some(RawHookEvent { observed_at: 900, hook_event_name: "Stop".into(), tool_name: None, notification_type: None, end_reason: None }), type_mismatches: Vec::new(), cwd: None };
+        let raw = RawSessionState { pid: None, latest_statusline: Some(base_sl(500)), latest_hook_event: Some(RawHookEvent { observed_at: 900, hook_event_name: "Stop".into(), tool_name: None, notification_type: None, end_reason: None }), type_mismatches: Vec::new(), cwd: None, turn_started_at: None };
         let snap = derive_snapshot("s1", Some(&raw), 1000, &alive);
         assert_eq!(snap.last_active_time.value, Some(900));
         assert!(snap.last_active_time.source.contains("never from file mtime"));

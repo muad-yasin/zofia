@@ -22,8 +22,10 @@ patch="$(printf '%s' "$input" | jq -c --argjson ppid "${PPID:-null}" --argjson n
     end_reason: (.end_reason // null),
     start_reason: (.start_reason // null)
   },
-  cwd: (.cwd // null)
-} | if .cwd == null then del(.cwd) else . end' 2>/dev/null)"
+  cwd: (.cwd // null),
+  turn_started_at: (if .hook_event_name == "UserPromptSubmit" then $now else null end)
+} | if .cwd == null then del(.cwd) else . end
+  | if .turn_started_at == null then del(.turn_started_at) else . end' 2>/dev/null)"
 
 if [ -n "$patch" ]; then
   zofia_merge_state "$session_id" "$patch"
