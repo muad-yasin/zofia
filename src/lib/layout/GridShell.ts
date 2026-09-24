@@ -1,5 +1,5 @@
 import type { CornerIndex, DetectedSession, RegisteredSession } from "./types.js";
-import { buildCompactCard, buildFullCard, fmtRelative, refreshRelativeTimes } from "./cardView.js";
+import { buildCompactCard, buildFullCard, fmtAbsolute, fmtRelative, refreshRelativeTimes } from "./cardView.js";
 import type { PaneRegistry } from "./paneRegistry.js";
 
 const BREAKPOINT_FULL = 1280;
@@ -71,6 +71,8 @@ export class GridShell {
   private centerDrag: { dx: number; dy: number } | null = null;
 
   private clearAllBtn: HTMLButtonElement | null = null;
+  private centerBtn!: HTMLButtonElement;
+  private accountEl!: HTMLElement;
   /** Sessions the shim has seen, offered in every empty corner (quality check Q3). */
   private detected: DetectedSession[] = [];
 
@@ -86,7 +88,10 @@ export class GridShell {
     this.resizeObserver = new ResizeObserver((entries) => this.onCornerResize(entries));
     this.buildDom();
     window.addEventListener("resize", () => this.onViewportResize());
-    setInterval(() => refreshRelativeTimes(this.cornerGridEl), RELATIVE_TICK_MS);
+    setInterval(() => {
+      refreshRelativeTimes(this.cornerGridEl);
+      this.renderAccount();
+    }, RELATIVE_TICK_MS);
   }
 
   private buildDom(): void {
@@ -101,9 +106,18 @@ export class GridShell {
     spacer.style.flex = "1 1 auto";
     const minimizeBtn = document.createElement("button");
     minimizeBtn.type = "button";
-    minimizeBtn.textContent = "Toggle center seat";
+    minimizeBtn.className = "center-toggle";
+    minimizeBtn.textContent = "Hide C&C";
+    minimizeBtn.setAttribute("aria-pressed", "false");
     minimizeBtn.addEventListener("click", () => this.toggleCenterMinimized());
-    topbar.append(h1, spacer);
+    this.centerBtn = minimizeBtn;
+    // Q6: the subscription's five-hour usage and reset belong to the account, not to a
+    // corner, so the top bar shows them once, with the time.
+    const account = document.createElement("div");
+    account.id = "account";
+    account.setAttribute("aria-label", "Subscription usage and time");
+    this.accountEl = account;
+    topbar.append(h1, account, spacer);
     // Option B (DECISIONS.md, 2026-09-23): assignments come back after a restart, so there
     // is a one-click way to forget them all.
     if (this.onClearAll) {
@@ -185,6 +199,8 @@ export class GridShell {
   private toggleCenterMinimized(): void {
     this.centerMinimized = !this.centerMinimized;
     this.centerEl.classList.toggle("minimized", this.centerMinimized);
+    this.centerBtn.textContent = this.centerMinimized ? "Show C&C" : "Hide C&C";
+    this.centerBtn.setAttribute("aria-pressed", String(this.centerMinimized));
     this.shellEl.dataset.center = this.centerMinimized ? "minimized" : "open";
     this.announce(this.centerMinimized ? "Center seat minimized" : "Center seat restored");
   }
@@ -254,6 +270,7 @@ export class GridShell {
     this.tabStripEl.hidden = !showTabStrip;
 
     if (this.clearAllBtn) this.clearAllBtn.disabled = this.registry.getAllTabEntries().length === 0;
+    this.renderAccount();
     this.renderCorners(visible);
     if (showTabStrip) this.renderTabStrip(entries);
   }
@@ -343,6 +360,31 @@ export class GridShell {
       this.resizeObserver.unobserve(extra);
       extra.remove();
     }
+  }
+
+  /** Usage and reset from whichever registered session reported them most recently (the
+   * corners can disagree: an idle session may no longer carry `five_hour`), plus the clock. */
+  private renderAccount(): void {
+    const reporting = this.registry
+      .getAllTabEntries()
+      .filter((e) => e.snapshot !== null && e.snapshot.usagePercent.availability !== "unknown" && e.snapshot.usagePercent.value !== null)
+      .sort((a, b) => (b.snapshot!.usagePercent.observed_at ?? 0) - (a.snapshot!.usagePercent.observed_at ?? 0));
+    const freshest = reporting[0]?.snapshot;
+    const from = reporting[0]?.label;
+    const parts: string[] = [];
+    let title = "No assigned session has reported the five-hour limit yet.";
+    if (freshest) {
+      parts.push(`5h usage ${freshest.usagePercent.value!.toFixed(0)}%`);
+      const reset = freshest.resetTimer.value;
+      if (freshest.resetTimer.availability !== "unknown" && reset !== null) parts.push(`resets ${fmtRelative(reset)}`);
+      title = `From ${from}: ${freshest.usagePercent.source}` + (reset !== null ? `; resets ${fmtAbsolute(reset)}` : "");
+    } else {
+      parts.push("5h usage —");
+    }
+    parts.push(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+    const text = parts.join(" · ");
+    if (this.accountEl.textContent !== text) this.accountEl.textContent = text;
+    this.accountEl.title = title;
   }
 
   /** Position-dependent attributes, re-applied whenever a corner element is reused. */

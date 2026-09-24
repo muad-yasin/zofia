@@ -31,7 +31,7 @@ If FUSE isn't available, add `--appimage-extract-and-run` at the end.
 
 ## 3. What you should see
 
-A top bar ("Zofia", "Toggle center seat"), four corners reading "no session assigned",
+A top bar ("Zofia", the five-hour usage, its reset countdown and the time, "Hide C&C"), four corners reading "no session assigned",
 and the C&C center seat in the middle with a "Working directory" box and a Launch
 button. A bar at the top saying "… wiring failed" means something is broken. Please
 note its text.

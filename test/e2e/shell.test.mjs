@@ -505,3 +505,28 @@ test("live: with no session detected, the corner says so and opens the paste box
     await page.close();
   }
 });
+
+// Q6: the five-hour usage and reset are the account's, shown once in the top bar from the
+// freshest reporting session; the C&C toggle says what it does.
+test("the top bar shows the freshest session's five-hour usage, its reset countdown and the time", async () => {
+  const page = await newLivePageAt(1280, 800);
+  try {
+    assert.match(await page.textContent("#account"), /^5h usage — · \d{2}:\d{2}$/);
+    const now = Math.floor(Date.now() / 1000);
+    const f = (value, observed_at) => ({ value, availability: "exposed", source: "statusline", observed_at });
+    for (const [corner, id] of [[1, "sess-old"], [2, "sess-new"]]) {
+      await page.fill(`[aria-label="Assign a session to corner ${corner}"]`, id);
+      await page.press(`[aria-label="Assign a session to corner ${corner}"]`, "Enter");
+    }
+    await fireSnapshot(page, liveSnapshot("sess-old", { usagePercent: f(20, now - 600), resetTimer: f(now + 7200 + 90, now - 600) }));
+    await fireSnapshot(page, liveSnapshot("sess-new", { usagePercent: f(37, now - 5), resetTimer: f(now + 3 * 3600 + 12 * 60 + 30, now - 5) }));
+    await page.waitForFunction(() => document.querySelector("#account").textContent.includes("37%"));
+    assert.match(await page.textContent("#account"), /^5h usage 37% · resets in 3h 12m · \d{2}:\d{2}$/);
+    assert.match(await page.getAttribute("#account", "title"), /^From sess-new:/);
+
+    await page.click(".center-toggle");
+    assert.equal(await page.textContent(".center-toggle"), "Show C&C");
+  } finally {
+    await page.close();
+  }
+});

@@ -108,6 +108,13 @@ body {
   color: var(--text-primary);
 }
 
+#account {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
 #topbar button {
   font-family: var(--font-chrome);
   font-size: 0.8125rem;
