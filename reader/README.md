@@ -20,12 +20,12 @@ every field carrying `{value, availability, source, observed_at}` — never a ba
   `--yes` to actually write. `uninstall.mjs` refuses if `settings.json`'s whole-file
   hash has changed since install, rather than guessing what's safe to remove.
 
-## Status: not yet installed anywhere real
+## Status: installed on the owner's machine
 
-Every test in `test/` runs against fixture files or a temp `settings.json` — nothing
-here has been run against the owner's actual `~/.claude/settings.json`. `PLAN.md` §10
-decision #2 requires his own confirmation that the install mechanism doesn't conflict
-with what he already has configured before that happens. See `../DECISIONS.md`.
+Installed on the owner's real `~/.claude/settings.json` on 2026-09-22 after his go, and
+reinstalled on 2026-09-23 (seven hooks, adding `UserPromptSubmit`) after a checking agent
+reviewed the diff. Every test in `test/` still runs against fixture files or a temp
+`settings.json`. See `../DECISIONS.md`.
 
 ## Usage
 

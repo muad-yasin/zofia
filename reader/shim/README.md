@@ -1,12 +1,14 @@
 # Zofia observation-bridge shim
 
-Two scripts, installed via `../install/install.mjs` (never run yet against the owner's
-real `~/.claude/settings.json` — see `../../DECISIONS.md`):
+Two scripts, installed via `../install/install.mjs` (installed on the owner's real
+`~/.claude/settings.json` since 2026-09-22, reinstalled 2026-09-23 — see `../../DECISIONS.md`).
+The installed commands point at this folder, so an edit here is live in every session at
+its next event:
 
 - `statusline-wrapper.sh` — installed as the `statusLine` command. Wraps any pre-existing
   one (invokes it, passes its stdout through unchanged) rather than replacing it.
 - `hook-writer.sh` — installed once per lifecycle hook (`Stop`, `PreToolUse`,
-  `PostToolUse`, `Notification`, `SessionStart`, `SessionEnd`). Appended alongside
+  `PostToolUse`, `Notification`, `SessionStart`, `SessionEnd`, `UserPromptSubmit`). Appended alongside
   whatever the owner already had registered for that event; nothing is wrapped or
   replaced, since Claude Code's hooks array already supports multiple handlers.
 
@@ -18,8 +20,8 @@ each other's write.
 
 Path: `$XDG_RUNTIME_DIR/zofia/sessions/<session_id>.json` (dir `0700`, file `0600`,
 tmpfs — nothing persists across reboot). `reader/src/deriveSnapshot.mjs` is the only
-code that reads this file and turns it into the nine-field `SessionSnapshot` the CLI and
-(later) the GUI actually render.
+code in this folder that reads this file and turns it into the nine-field `SessionSnapshot`
+the CLI renders; `src-tauri/src/session_reader.rs` is its Rust port for the GUI.
 
 ```jsonc
 {
@@ -28,6 +30,11 @@ code that reads this file and turns it into the nine-field `SessionSnapshot` the
                                  // check (kill -0), never a timeout guess.
   "updated_at": 1700000000,     // set on every write
   "first_seen_at": 1700000000,  // set once, on the first write only
+  "cwd": "/home/u/Projects/SMO", // the session's folder (statusline workspace.current_dir
+                                 // or hook cwd); names it in the corner picker. A payload
+                                 // without one keeps the last.
+  "turn_started_at": 1700000000, // set on UserPromptSubmit only: the turn the duration
+                                 // line times ("working for" / "worked for")
 
   "latest_statusline": {        // present once at least one statusline tick has fired
     "observed_at": 1700000000,

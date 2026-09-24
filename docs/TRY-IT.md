@@ -1,7 +1,7 @@
 # Try it — running the Zofia AppImage yourself
 
-What this build is: HANDOFF items 1-5. The four corners watch Claude Code sessions you
-opened yourself. The center seat is a real terminal, but until item 8 (your own read of
+What this build is: HANDOFF items 1-7 and 9 (item 5 minus signing; item 8 waits on your
+clearance file). The four corners watch Claude Code sessions you opened yourself. The center seat is a real terminal, but until item 8 (your own read of
 Anthropic's terms) it only runs the test mock, never the real `claude`.
 
 ## 1. Get the AppImage
@@ -31,7 +31,8 @@ If FUSE isn't available, add `--appimage-extract-and-run` at the end.
 
 ## 3. What you should see
 
-A top bar ("Zofia", the five-hour usage, its reset countdown and the time, "Hide C&C"), four corners reading "no session assigned",
+A top bar ("Zofia", the five-hour usage, its reset countdown and the time, "Clear all corners", "Hide C&C"), four corners reading "no session assigned"
+and listing the sessions they found,
 and the C&C center seat in the middle with a "Working directory" box and a Launch
 button. A bar at the top saying "… wiring failed" means something is broken. Please
 note its text.

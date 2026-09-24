@@ -7,6 +7,9 @@ the build plan and order. Private until the open-source release.
 
 Status: building, per `HANDOFF.md`'s order. See `PROGRESS.md` for what's actually done.
 
+**To run it:** [`docs/TRY-IT.md`](docs/TRY-IT.md) — where the AppImage is, how to start
+it, and what you should see.
+
 ## Repo layout
 
 - `CLAUDE.md` — the owner's binding spec and build rules.
