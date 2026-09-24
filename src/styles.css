@@ -364,16 +364,37 @@ body {
   white-space: nowrap;
 }
 
-.availability-chip[data-availability="exposed"] {
-  color: var(--status-working);
-}
-
 .availability-chip[data-availability="approximable"] {
   color: var(--text-tertiary);
 }
 
 .availability-chip[data-availability="unknown"] {
   color: var(--status-unknown);
+}
+
+/* The activity headline (Q4): glyph + words + colour, never colour alone. */
+.activity-headline {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.corner .full-card .activity-headline {
+  grid-column: 1 / -1;
+  margin-bottom: var(--sp-1);
+}
+
+.activity-headline[data-kind="working"] { color: var(--status-working); }
+.activity-headline[data-kind="waiting"] { color: var(--status-waiting); }
+.activity-headline[data-kind="idle"] { color: var(--status-idle); }
+.activity-headline[data-kind="ended"],
+.activity-headline[data-kind="stale"],
+.activity-headline[data-kind="unknown"] { color: var(--status-unknown); font-weight: 400; }
+
+.availability-chip[data-availability="unknown"] {
+  font-weight: 400;
 }
 
 /* Pane floor (PLAN.md §4, added 2026-09-22): below 480x320 real px, a corner shows a
@@ -389,10 +410,25 @@ body {
 
 .corner .compact-card {
   display: none;
-  align-items: center;
+  align-items: baseline;
+  flex-wrap: wrap;
   gap: var(--sp-2);
   font-family: var(--font-mono);
   font-size: 0.75rem;
+}
+
+.compact-card .compact-name {
+  font-family: var(--font-chrome);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.compact-card .compact-activity {
+  font-size: 0.75rem;
+}
+
+.compact-card .compact-ctx {
+  color: var(--text-muted);
 }
 
 /* ---- center pane ---- */

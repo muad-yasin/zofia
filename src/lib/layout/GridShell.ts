@@ -1,4 +1,5 @@
-import type { CornerIndex, DetectedSession, Field, RegisteredSession } from "./types.js";
+import type { CornerIndex, DetectedSession, RegisteredSession } from "./types.js";
+import { buildCompactCard, buildFullCard, fmtRelative, refreshRelativeTimes } from "./cardView.js";
 import type { PaneRegistry } from "./paneRegistry.js";
 
 const BREAKPOINT_FULL = 1280;
@@ -21,30 +22,22 @@ function breakpointFor(width: number): Breakpoint {
   return "compact";
 }
 
-function fmtAvailability(a: Field<unknown>["availability"]): string {
-  return a === "exposed" ? "measured" : a === "approximable" ? "approx." : "UNKNOWN";
-}
+/** How often relative times ("40s ago", "in 3h 12m") are re-rendered in place. */
+const RELATIVE_TICK_MS = 5000;
 
-function fmtPct(f: Field<number>): string {
-  if (f.availability === "unknown" || f.value === null) return "—";
-  return `${f.value.toFixed(0)}%`;
-}
-
-/** Unix epoch seconds -> local wall-clock time. Absolute on purpose: a relative "Ns ago"
- * would go stale between re-renders and read as a measurement it no longer is. */
-function fmtClock(f: Field<number>): string {
-  if (f.availability === "unknown" || f.value === null) return "—";
-  return new Date(f.value * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
-
-/** Unix epoch seconds -> "40s ago", "3m ago", "2h ago": how long since a picker entry last
- * did anything. Re-rendered with every picker refresh, so it never sits stale for long. */
-function fmtAgo(epochS: number | null): string {
-  if (epochS === null) return "no activity seen yet";
-  const s = Math.max(0, Math.floor(Date.now() / 1000) - epochS);
-  if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  return `${Math.floor(s / 3600)}h ago`;
+/** Replaces each direct child of `oldEl` whose markup changed, leaving the rest untouched
+ * (quality check Q8: a snapshot used to rebuild all four corners, losing scroll, text
+ * selection and the compact state). Falls back to replacing `oldEl` when the shape differs. */
+function patchChildren(oldEl: Element, newEl: Element): void {
+  const olds = Array.from(oldEl.children);
+  const news = Array.from(newEl.children);
+  if (olds.length !== news.length || olds.some((o, k) => o.tagName !== news[k].tagName || o.className !== news[k].className)) {
+    oldEl.replaceWith(newEl);
+    return;
+  }
+  olds.forEach((o, k) => {
+    if (o.outerHTML !== news[k].outerHTML) o.replaceWith(news[k]);
+  });
 }
 
 /** The name a picked session gets in its corner: its folder, plus the id's first four
@@ -93,6 +86,7 @@ export class GridShell {
     this.resizeObserver = new ResizeObserver((entries) => this.onCornerResize(entries));
     this.buildDom();
     window.addEventListener("resize", () => this.onViewportResize());
+    setInterval(() => refreshRelativeTimes(this.cornerGridEl), RELATIVE_TICK_MS);
   }
 
   private buildDom(): void {
@@ -265,9 +259,11 @@ export class GridShell {
   }
 
   private renderCorners(visible: { session: RegisteredSession | null; cornerIndex: CornerIndex | null }[]): void {
-    // Snapshot events re-render every corner, so carry over what the owner is in the
-    // middle of: text typed into an assign box, and which corner element had focus
-    // (audit F5, 2026-09-23 — each statusline update used to wipe both).
+    // Keyed update (quality check Q8): a corner showing the same session keeps its element,
+    // and only the rows whose content changed are replaced; an unchanged corner is not
+    // touched at all. Only a corner that changes what it shows is rebuilt, and for those,
+    // carry over what the owner is in the middle of: text typed into an assign box, and
+    // which corner element had focus (audit F5, 2026-09-23).
     const typed = new Map<string, { value: string; start: number | null; end: number | null }>();
     this.cornerGridEl.querySelectorAll<HTMLInputElement>(".assign-form input").forEach((input) => {
       if (input.dataset.slot) typed.set(input.dataset.slot, { value: input.value, start: input.selectionStart, end: input.selectionEnd });
@@ -282,25 +278,49 @@ export class GridShell {
       if (d.dataset.slot && String(d.open) !== d.dataset.defaultOpen) pasteToggled.set(d.dataset.slot, d.open);
     });
 
-    this.resizeObserver.disconnect();
-    this.cornerGridEl.innerHTML = "";
+    const existing = Array.from(this.cornerGridEl.children) as HTMLElement[];
+    const pickerSig = JSON.stringify([
+      this.detected.map((d) => [d.session_id, d.project, d.activity, d.model, d.last_active]),
+      this.registry.getAllTabEntries().map((e) => e.sessionId),
+    ]);
     visible.forEach(({ session, cornerIndex }, i) => {
+      const key = session ? `s:${session.sessionId}` : `e:${cornerIndex}`;
+      const sig = session ? JSON.stringify([session.label, session.restored ?? false, session.snapshot]) : pickerSig;
+      const label = session ? `Session: ${session.label}` : `Corner ${i + 1}: no session assigned`;
+      const old = existing[i];
+
+      if (old && old.dataset.key === key) {
+        this.placeCorner(old, i, visible.length, label);
+        if (old.dataset.sig === sig) return;
+        if (session) {
+          const [full, compact] = old.children;
+          patchChildren(full, buildFullCard(session));
+          patchChildren(compact, buildCompactCard(session));
+          old.dataset.sig = sig;
+          return;
+        }
+      }
+
       const el = document.createElement("section");
       el.className = "corner" + (session ? "" : " empty");
       el.tabIndex = 0;
-      el.dataset.corner = String(i);
-      // Which side the center seat overlaps: a left-column corner's inner edge is its right.
-      el.dataset.side = i % 2 === 0 ? "left" : "right";
-      el.dataset.row = visible.length === 4 && i >= 2 ? "bottom" : "top";
-      el.setAttribute("aria-label", session ? `Session: ${session.label}` : `Corner ${i + 1}: no session assigned`);
-
+      el.dataset.key = key;
+      el.dataset.sig = sig;
+      this.placeCorner(el, i, visible.length, label);
       if (!session) {
         el.append(this.buildAssignForm(cornerIndex));
       } else {
-        el.append(this.buildFullCard(session), this.buildCompactCard(session));
+        el.append(buildFullCard(session), buildCompactCard(session));
       }
-
-      this.cornerGridEl.append(el);
+      if (old) {
+        // Keep the pane-floor state until the observer re-measures, so a compact pane
+        // never flashes its full card for a frame.
+        if (old.dataset.compact) el.dataset.compact = old.dataset.compact;
+        this.resizeObserver.unobserve(old);
+        old.replaceWith(el);
+      } else {
+        this.cornerGridEl.append(el);
+      }
       this.resizeObserver.observe(el, { box: "border-box" });
 
       const input = el.querySelector<HTMLInputElement>(".assign-form input");
@@ -319,6 +339,19 @@ export class GridShell {
         (target ?? el).focus({ preventScroll: true });
       }
     });
+    for (const extra of existing.slice(visible.length)) {
+      this.resizeObserver.unobserve(extra);
+      extra.remove();
+    }
+  }
+
+  /** Position-dependent attributes, re-applied whenever a corner element is reused. */
+  private placeCorner(el: HTMLElement, i: number, count: number, label: string): void {
+    el.dataset.corner = String(i);
+    // Which side the center seat overlaps: a left-column corner's inner edge is its right.
+    el.dataset.side = i % 2 === 0 ? "left" : "right";
+    el.dataset.row = count === 4 && i >= 2 ? "bottom" : "top";
+    el.setAttribute("aria-label", label);
   }
 
   /** Registration is explicit, never automatic discovery (PLAN.md §2.1): the owner picks
@@ -355,7 +388,16 @@ export class GridShell {
         nameEl.textContent = name;
         const detail = document.createElement("span");
         detail.className = "pick-detail";
-        detail.textContent = [d.activity, d.model, fmtAgo(d.last_active)].filter(Boolean).join(" · ");
+        detail.textContent = [d.activity, d.model].filter(Boolean).join(" · ");
+        if (d.last_active !== null) {
+          const when = document.createElement("time");
+          when.className = "rel-time";
+          when.dataset.epoch = String(d.last_active);
+          when.textContent = fmtRelative(d.last_active);
+          detail.append(detail.textContent ? " · " : "", when);
+        } else {
+          detail.append(detail.textContent ? " · " : "", "no activity seen yet");
+        }
         btn.append(nameEl, detail);
         btn.setAttribute("aria-label", `Show ${name} in corner ${cornerIndex + 1}: ${detail.textContent}`);
         btn.addEventListener("click", () => this.onAssignSession?.(cornerIndex, d.session_id, name));
@@ -399,70 +441,6 @@ export class GridShell {
     paste.append(summary, input, button);
     wrap.append(paste);
     return wrap;
-  }
-
-  private buildFullCard(session: RegisteredSession): HTMLElement {
-    const wrap = document.createElement("div");
-    wrap.className = "full-card";
-    const h2 = document.createElement("h2");
-    h2.textContent = session.label;
-    if (session.restored) {
-      const tag = document.createElement("span");
-      tag.className = "restored-chip";
-      tag.textContent = "restored";
-      tag.title = "Assigned earlier this boot and restored at launch; Clear all corners forgets it";
-      h2.append(" ", tag);
-    }
-    wrap.append(h2);
-
-    const snap = session.snapshot;
-    if (!snap) {
-      wrap.append(this.fieldRow("status", "no snapshot yet", "unknown"));
-      return wrap;
-    }
-
-    wrap.append(
-      this.fieldRow("model", snap.model.value?.display_name ?? "—", snap.model.availability),
-      this.fieldRow("effort", snap.effort.value ?? "—", snap.effort.availability),
-      this.fieldRow("usage", fmtPct(snap.usagePercent), snap.usagePercent.availability),
-      this.fieldRow("resets", fmtClock(snap.resetTimer), snap.resetTimer.availability),
-      this.fieldRow("context", fmtPct(snap.contextPercent), snap.contextPercent.availability),
-      this.fieldRow("activity", snap.activityState.value ?? "—", snap.activityState.availability),
-      this.fieldRow("last active", fmtClock(snap.lastActiveTime), snap.lastActiveTime.availability),
-      this.fieldRow("duration", snap.durationLine.value ?? "—", snap.durationLine.availability),
-      this.fieldRow("spend", snap.tokenSpend.usd.value != null ? `$${snap.tokenSpend.usd.value.toFixed(2)}` : "—", snap.tokenSpend.usd.availability)
-    );
-    return wrap;
-  }
-
-  private buildCompactCard(session: RegisteredSession): HTMLElement {
-    const wrap = document.createElement("div");
-    wrap.className = "compact-card";
-    const snap = session.snapshot;
-    const modelName = snap?.model.value?.display_name ?? "—";
-    const availability = snap?.model.availability ?? "unknown";
-    wrap.append(document.createTextNode(`${session.label}: ${modelName}`), this.chip(availability));
-    return wrap;
-  }
-
-  private fieldRow(label: string, value: string, availability: Field<unknown>["availability"]): HTMLElement {
-    const row = document.createElement("div");
-    row.className = "field-row";
-    const labelEl = document.createElement("span");
-    labelEl.className = "label";
-    labelEl.textContent = label;
-    const valueWrap = document.createElement("span");
-    valueWrap.append(document.createTextNode(value + " "), this.chip(availability));
-    row.append(labelEl, valueWrap);
-    return row;
-  }
-
-  private chip(availability: Field<unknown>["availability"]): HTMLElement {
-    const chip = document.createElement("span");
-    chip.className = "availability-chip";
-    chip.dataset.availability = availability;
-    chip.textContent = fmtAvailability(availability);
-    return chip;
   }
 
   private renderTabStrip(entries: (RegisteredSession | null)[]): void {

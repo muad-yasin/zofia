@@ -19,7 +19,7 @@ export function sampleSnapshot(overrides: Partial<SessionSnapshot> = {}): Sessio
     resetTimer: field(now + 3 * 3600 + 12 * 60, "exposed", "sample data", now),
     contextPercent: field(18, "exposed", "sample data", now),
     activityState: field("running tool: Bash · 42s", "approximable", "sample data", now),
-    durationLine: field(null, "unknown", "not exposed for a corner session (PLAN.md §2.2)", null),
+    durationLine: field("working for 1m 5s", "approximable", "sample data", now - 65),
     tokenSpend: {
       usd: field(0.84, "exposed", "sample data", now),
       tokens: field({ input_tokens: 15200, output_tokens: 640 }, "approximable", "sample data", now),
@@ -35,12 +35,14 @@ export const SAMPLE_SESSIONS: SessionSnapshot[] = [
     session_id: "sample-2",
     model: field({ id: "claude-opus-5", display_name: "Opus 5" }, "exposed", "sample data", Math.floor(Date.now() / 1000)),
     activityState: field("idle", "approximable", "sample data", Math.floor(Date.now() / 1000)),
+    durationLine: field("worked for 2m 3s", "approximable", "sample data", Math.floor(Date.now() / 1000) - 300),
   }),
   sampleSnapshot({
     session_id: "sample-3",
     activityState: field("stale · last event 3m 30s ago", "approximable", "sample data", Math.floor(Date.now() / 1000) - 210),
     usagePercent: field(null, "unknown", "rate_limits absent in this sample (pre-first-API-response)", null),
     resetTimer: field(null, "unknown", "rate_limits absent in this sample (pre-first-API-response)", null),
+    durationLine: field(null, "unknown", "no prompt submitted since the shim began recording turn starts", null),
   }),
 ];
 

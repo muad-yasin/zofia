@@ -101,7 +101,7 @@ test("1280x800 and 1400x900: the center seat opens at the 40% ceiling and covers
       assert.ok(center.width >= w * 0.4 - 1 && center.height >= h * 0.4 - 1, `${w}x${h}: center seat is ${center.width}x${center.height}, not at the 40% ceiling`);
       const resize = await page.$eval("#center-pane", (el) => getComputedStyle(el).resize);
       assert.equal(resize, "both", "the center seat must have a resize grip");
-      const covered = await page.$$eval(".corner .full-card .field-row > span, .corner .assign-form > *", (els, c) =>
+      const covered = await page.$$eval(".corner .full-card .field-row > span, .corner .activity-headline, .corner .assign-form > *", (els, c) =>
         els.map((el) => ({ text: el.textContent, r: el.getBoundingClientRect() }))
           .filter(({ r }) => r.width > 0 && r.left < c.right && r.right > c.left && r.top < c.bottom && r.bottom > c.top)
           .map(({ text }) => text), center);
@@ -334,24 +334,86 @@ test("a snapshot re-render keeps text typed into another corner's assign box, an
   }
 });
 
-// Audit F6, 2026-09-23: the owner's spec names the reset timer and last-active time; the
-// duration line is confirmed unknown for a corner and must say so, not vanish.
-test("corner cards render reset timer, last-active time and the duration line with availability chips", async () => {
+// Audit F6, 2026-09-23: the owner's spec names the reset timer and last-active time; Q5/Q6
+// (2026-09-24) made the duration line the turn timer and every time relative, with the
+// absolute date and time in its tooltip. A reported value carries no chip; an unknown one
+// says UNKNOWN, and every row's tooltip is the field's source.
+test("corner cards: relative reset and last-active times, the turn line, chips only where not reported", async () => {
   const page = await newLivePageAt(1280, 800);
   try {
     await page.fill('[aria-label="Assign a session to corner 1"]', "sess-A");
     await page.press('[aria-label="Assign a session to corner 1"]', "Enter");
-    await fireSnapshot(page, liveSnapshot("sess-A"));
+    const now = Math.floor(Date.now() / 1000);
+    const f = (value, availability = "exposed", observed_at = now) => ({ value, availability, source: `src-${value}`, observed_at });
+    await fireSnapshot(page, liveSnapshot("sess-A", { resetTimer: f(now + 3 * 3600 + 12 * 60 + 30), lastActiveTime: f(now - 40), durationLine: f(null, "unknown") }));
     await page.waitForSelector('[data-corner="0"] .full-card .field-row');
-
-    const rows = await page.$$eval('[data-corner="0"] .full-card .field-row', (els) =>
-      Object.fromEntries(els.map((r) => [r.querySelector(".label")?.textContent, r.querySelector(".availability-chip")?.textContent]))
+    const rows = async () => page.$$eval('[data-corner="0"] .full-card .field-row', (els) =>
+      Object.fromEntries(els.map((r) => [r.dataset.field, { text: r.querySelector(".value").textContent, chip: r.querySelector(".availability-chip")?.textContent ?? null, title: r.title }]))
     );
-    assert.equal(rows["resets"], "measured");
-    assert.equal(rows["last active"], "measured");
-    assert.equal(rows["duration"], "UNKNOWN");
-    const resetText = await page.$$eval('[data-corner="0"] .field-row', (els) => els.find((r) => r.querySelector(".label")?.textContent === "resets")?.textContent ?? "");
-    assert.match(resetText, /\d{2}:\d{2}:\d{2}/, `expected a clock time, got ${JSON.stringify(resetText)}`);
+    let r = await rows();
+    assert.match(r.resets.text, /^in 3h 12m$/);
+    assert.equal(r.resets.chip, null, "a reported value carries no chip");
+    assert.match(r["last active"].text, /^4\ds ago$/);
+    assert.equal(r.turn.chip, "UNKNOWN");
+    assert.equal(r.effort.title, "e2e", "the row tooltip is the field source");
+    const when = await page.$eval('[data-corner="0"] [data-field="resets"] time', (t) => t.title);
+    assert.match(when, /\d/, "the absolute time is in the tooltip");
+
+    await fireSnapshot(page, liveSnapshot("sess-A", { durationLine: f("worked for 2m 3s", "approximable", now - 60) }));
+    await page.waitForFunction(() => document.querySelector('[data-corner="0"] [data-field="turn"] .value').textContent.includes("worked"));
+    r = await rows();
+    assert.match(r.turn.text, /^worked for 2m 3s · done \d{2}:\d{2} estimated$/);
+    assert.equal(r.turn.chip, "estimated");
+  } finally {
+    await page.close();
+  }
+});
+
+// Q4: the activity is the corner's headline, coloured by kind, with a glyph and words too.
+test("the activity headline leads the card, coloured by kind and never by colour alone", async () => {
+  const page = await newLivePageAt(1280, 800);
+  try {
+    await page.fill('[aria-label="Assign a session to corner 1"]', "sess-W");
+    await page.press('[aria-label="Assign a session to corner 1"]', "Enter");
+    await fireSnapshot(page, liveSnapshot("sess-W", { activityState: { value: "waiting for input", availability: "approximable", source: "hook", observed_at: 1 } }));
+    await page.waitForSelector('[data-corner="0"] .activity-headline[data-kind="waiting"]');
+    const h = await page.$eval('[data-corner="0"] .activity-headline', (el) => ({ text: el.textContent, color: getComputedStyle(el).color, first: el.parentElement.children[1] === el }));
+    assert.equal(h.text, "◆ waiting for input");
+    assert.equal(h.color, "rgb(217, 138, 131)");
+    assert.ok(h.first, "the headline comes right after the name");
+  } finally {
+    await page.close();
+  }
+});
+
+// Q8: a snapshot used to rebuild all four corners. Now an unchanged corner is untouched and a
+// changed one keeps its element and every row that did not change.
+test("snapshots update corners in place: same element, unchanged rows kept, scroll kept", async () => {
+  const page = await newLivePageAt(1280, 800);
+  try {
+    await page.fill('[aria-label="Assign a session to corner 1"]', "sess-K");
+    await page.press('[aria-label="Assign a session to corner 1"]', "Enter");
+    await fireSnapshot(page, liveSnapshot("sess-K"));
+    await page.waitForSelector('[data-corner="0"] .full-card .field-row');
+    await page.evaluate(() => {
+      const c = document.querySelector('[data-corner="0"]');
+      c.__mark = "corner";
+      c.querySelector('[data-field="model"]').__mark = "model";
+      c.querySelector(".activity-headline").__mark = "headline";
+      document.querySelector('[data-corner="1"]').__mark = "empty";
+    });
+    await fireSnapshot(page, liveSnapshot("sess-K", { activityState: { value: "processing · 3s", availability: "approximable", source: "hook", observed_at: 1 } }));
+    await page.waitForSelector('[data-corner="0"] .activity-headline[data-kind="working"]');
+    const kept = await page.evaluate(() => {
+      const c = document.querySelector('[data-corner="0"]');
+      return {
+        corner: c.__mark,
+        model: c.querySelector('[data-field="model"]').__mark,
+        headline: c.querySelector(".activity-headline").__mark ?? null,
+        empty: document.querySelector('[data-corner="1"]').__mark,
+      };
+    });
+    assert.deepEqual(kept, { corner: "corner", model: "model", headline: null, empty: "empty" });
   } finally {
     await page.close();
   }
