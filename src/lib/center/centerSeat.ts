@@ -81,12 +81,21 @@ export async function mountCenterSeat(body: HTMLElement): Promise<void> {
     termHost.dataset.bytesIn = String(bytesIn); // byte count only, never content: lets the smoke test tell "no events" from "not rendered"
     term.write(new Uint8Array(e.payload));
   });
-  // Rust frees the seat's slot before emitting this, so Launch works again at once.
-  await listen("zofia://center-exit", () => {
+  // Rust frees the seat's slot before emitting this, so Launch works again at once. It says
+  // how the seat ended, and the model line goes: nothing is running any more (Q11).
+  await listen<{ how: string | null } | null>("zofia://center-exit", (e) => {
     running = false;
     launcher.hidden = false;
-    notice.textContent = "Center seat exited.";
+    modelLine.textContent = "";
+    notice.textContent = `Center seat ${e.payload?.how ?? "exited"}.`;
   });
+
+  // Q11: if the gate would refuse, say so now rather than after Launch.
+  const gate = await invoke<string | null>("center_gate");
+  if (gate) {
+    notice.textContent = gate;
+    launchBtn.disabled = true;
+  }
 
   setInterval(async () => {
     if (!running) return;

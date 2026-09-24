@@ -56,6 +56,13 @@ pub fn seat_argv(model: Option<&str>, web_opt_in: bool) -> Result<Vec<String>, S
 #[derive(Default)]
 pub struct CenterSeat(Mutex<Option<PtySeat>>);
 
+/// Why the seat can't launch right now, if it can't: the same gate `center_spawn` applies,
+/// asked at mount so the pane says so before the owner clicks Launch (quality check Q11).
+#[tauri::command]
+pub fn center_gate() -> Option<String> {
+    resolve_command(std::env::var(CENTER_COMMAND_ENV).ok()).err()
+}
+
 /// Which program the center seat may launch. Pure over its input so the gate is testable.
 pub fn resolve_command(configured: Option<String>) -> Result<String, String> {
     let Some(cmd) = configured.filter(|c| !c.trim().is_empty()) else {
@@ -194,8 +201,8 @@ fn watch_leader(app: AppHandle, pid: Option<u32>) {
             Err(_) => return,
         };
         if exited {
-            if reap_if_current(&seat, pid) {
-                let _ = app.emit("zofia://center-exit", ());
+            if let Some(how) = reap_with_status(&seat, pid) {
+                let _ = app.emit("zofia://center-exit", CenterExit { how });
             }
             return;
         }
@@ -205,20 +212,25 @@ fn watch_leader(app: AppHandle, pid: Option<u32>) {
 /// When the seat ends on its own (/exit, a crash), reaps it and frees the slot so it can
 /// be launched again (audit 2026-09-23 #2: the slot stayed set, the process a zombie).
 /// Only if the slot still holds *this* seat: the zombie keeps its pid until reaped, so a
-/// pid match can't be a newer seat. Returns whether it cleared the slot.
-pub fn reap_if_current(seat: &CenterSeat, pid: Option<u32>) -> bool {
+/// pid match can't be a newer seat.
+/// Also says how the seat ended (quality check Q11). `None`: not this seat's slot, nothing
+/// reaped. `Some(None)`: reaped, but the exit status couldn't be read.
+fn reap_with_status(seat: &CenterSeat, pid: Option<u32>) -> Option<Option<String>> {
     let taken = {
-        let Ok(mut slot) = seat.0.lock() else { return false };
+        let Ok(mut slot) = seat.0.lock() else { return None };
         if pid.is_none() || slot.as_ref().map(|p| p.pid()) != Some(pid) {
-            return false;
+            return None;
         }
         slot.take()
     };
-    if let Some(pty) = taken {
-        // Outside the lock: kills any leftover children, then reaps the leader.
-        let _ = pty.stop(CENTER_SEAT_SESSION_ID);
-    }
-    true
+    // Outside the lock: kills any leftover children, then reaps the leader.
+    Some(taken.and_then(|pty| pty.stop(CENTER_SEAT_SESSION_ID).ok().flatten()))
+}
+
+/// The `zofia://center-exit` payload.
+#[derive(Clone, serde::Serialize)]
+struct CenterExit {
+    how: Option<String>,
 }
 
 fn forward_output(app: AppHandle, mut reader: Box<dyn Read + Send>, pid: Option<u32>) {
@@ -234,8 +246,8 @@ fn forward_output(app: AppHandle, mut reader: Box<dyn Read + Send>, pid: Option<
                 }
             }
         }
-        if reap_if_current(&app.state::<CenterSeat>(), pid) {
-            let _ = app.emit("zofia://center-exit", ());
+        if let Some(how) = reap_with_status(&app.state::<CenterSeat>(), pid) {
+            let _ = app.emit("zofia://center-exit", CenterExit { how });
         }
     });
 }
@@ -273,7 +285,7 @@ pub async fn center_stop(seat: State<'_, CenterSeat>, session_id: String) -> Res
             *slot = Some(pty);
         }
     }
-    result
+    result.map(|_| ())
 }
 
 /// Sensitive paths (CLAUDE.md, .claude, .mcp.json) that changed in the seat's workdir since
@@ -437,7 +449,7 @@ mod tests {
         }
         assert!(pty.leader_exited(), "leader exit not seen");
         let seat = CenterSeat(Mutex::new(Some(pty)));
-        assert!(reap_if_current(&seat, pid));
+        assert!(reap_with_status(&seat, pid).is_some());
         assert!(seat.0.lock().unwrap().is_none());
     }
 
@@ -452,11 +464,22 @@ mod tests {
         let mut buf = [0u8; 4096];
         while reader.read(&mut buf).map(|n| n > 0).unwrap_or(false) {} // EOF: what forward_output sees
 
-        assert!(!reap_if_current(&seat, Some(u32::MAX)), "a different pid must not clear the slot");
-        assert!(reap_if_current(&seat, pid));
+        assert!(reap_with_status(&seat, Some(u32::MAX)).is_none(), "a different pid must not clear the slot");
+        assert_eq!(reap_with_status(&seat, pid), Some(Some("exited with code 0".to_string())), "Q11: the exit is reported");
         assert!(seat.0.lock().unwrap().is_none(), "slot still set");
         let status = std::fs::read_to_string(format!("/proc/{}/stat", pid.unwrap())).unwrap_or_default();
         assert!(!status.contains(") Z "), "seat left as a zombie: {status}");
+    }
+
+    // Q11: a seat that ends on its own reports its real exit code, not the stop's SIGHUP.
+    #[test]
+    fn a_self_exited_seat_reports_its_own_exit_code() {
+        let (pty, mut reader) = pty_seat::spawn("/bin/bash", &["-c", "echo bye; exit 3"], Path::new("/tmp")).unwrap();
+        let pid = pty.pid();
+        let seat = CenterSeat(Mutex::new(Some(pty)));
+        let mut buf = [0u8; 4096];
+        while reader.read(&mut buf).map(|n| n > 0).unwrap_or(false) {}
+        assert_eq!(reap_with_status(&seat, pid), Some(Some("exited with code 3".to_string())));
     }
 
     #[test]

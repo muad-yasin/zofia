@@ -32,6 +32,7 @@ pub fn run() {
             assignments::assignments_get,
             assignments::assignment_set,
             assignments::assignments_clear,
+            center_seat::center_gate,
             center_seat::center_preflight,
             center_seat::center_spawn,
             center_seat::center_write,

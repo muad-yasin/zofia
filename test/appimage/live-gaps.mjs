@@ -136,6 +136,17 @@ try {
   const heard = await waitFor(async () => (await term()).match(/HEARD:([A-Za-z0-9]*)/)?.[1], 10000);
   check("62 separate keystrokes arrive in order", heard === seq, `heard ${JSON.stringify(heard)}`);
 
+  // Q11: when the seat ends on its own, the pane says how, and drops the model line.
+  step("the seat reports how it ended");
+  check("the model line shows while the seat runs", (await app.textContent(".center-model")).startsWith("Model: sonnet"));
+  await app.run(
+    "const ta = document.querySelector('.xterm-helper-textarea'); ta.focus();" +
+      "for (const ch of 'EXIT\\r') ta.dispatchEvent(new InputEvent('input', {data: ch, inputType: 'insertText', bubbles: true}));",
+  );
+  const exitNotice = await waitFor(async () => (await app.textContent(".center-notice")).includes("exited"), 10000);
+  check("the pane says the seat exited with code 0", exitNotice && (await app.textContent(".center-notice")) === "Center seat exited with code 0.", await app.textContent(".center-notice"));
+  check("the model line is gone after exit", (await app.textContent(".center-model")) === "");
+
   // ---- launch 2: option B ---------------------------------------------------------
   step("relaunch for persistence");
   const saved = JSON.parse(readFileSync(path.join(zofiaDir, "assignments.json"), "utf8"));
@@ -155,6 +166,16 @@ try {
   const cleared = await waitFor(async () => (await app.findAll(".assign-form")).length === 4, 5000);
   const after = JSON.parse(readFileSync(path.join(zofiaDir, "assignments.json"), "utf8"));
   check("Clear all empties the corners and the saved file", Boolean(cleared) && after.corners.length === 0, JSON.stringify(after));
+
+  // ---- launch 3: no center-seat command (Q11) ---------------------------------------
+  step("relaunch without a center-seat command");
+  await app.close();
+  app = null;
+  const { ZOFIA_CENTER_COMMAND: _unset, ...noSeatEnv } = env;
+  app = await launchApp(appImage, noSeatEnv, { port: PORT });
+  const gated = await waitFor(async () => (await app.textContent(".center-notice")).includes("off until item 8"), 15000);
+  check("the pane says the seat is off before anyone clicks Launch", Boolean(gated), await app.textContent(".center-notice"));
+  check("Launch is disabled while the seat is off", await app.run("return document.querySelector('.center-launcher button').disabled;"));
 } catch (err) {
   check("live-gaps run completed", false, String(err?.stack ?? err));
 } finally {

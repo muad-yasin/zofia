@@ -233,7 +233,10 @@ impl PtySeat {
     /// - Signalling only the leader pid leaves its own children (a real CLI's tool
     ///   subprocesses) running. portable-pty starts the child with setsid, so its pid is
     ///   its process group id; both signals go to the group.
-    pub fn stop(&self, session_id: &str) -> Result<(), String> {
+    /// Stops the seat and reaps its leader. `Ok` carries how the leader ended ("exited with
+    /// code 0", "ended by signal SIGHUP"), as first reaped (quality check Q11): for a seat that
+    /// exited on its own, that is its real exit, since the leader is already a zombie here.
+    pub fn stop(&self, session_id: &str) -> Result<Option<String>, String> {
         if session_id != CENTER_SEAT_SESSION_ID {
             return Err(format!("ownership check failed: \"{session_id}\" is not the owned center seat"));
         }
@@ -246,15 +249,15 @@ impl PtySeat {
         // link to the seat is gone. Catches descendants that left the group with setsid.
         let tree = descendants(pgid as u32);
         signal_group(pgid, libc::SIGHUP);
-        let exited = wait_for_exit(&mut **child, KILL_ESCALATION_MS);
+        let first = wait_for_exit(&mut **child, KILL_ESCALATION_MS);
         // SIGKILL the group either way: members that ignored SIGHUP must not outlive the
         // seat even when the leader itself exited politely. ESRCH (group gone) is fine.
         signal_group(pgid, libc::SIGKILL);
         kill_listed(&tree);
-        if exited || wait_for_exit(&mut **child, 1_000) {
-            return Ok(());
+        match first.or_else(|| wait_for_exit(&mut **child, 1_000)) {
+            Some(status) => Ok(Some(describe_exit(&status))),
+            None => Err("center seat process survived SIGKILL escalation".to_string()),
         }
-        Err("center seat process survived SIGKILL escalation".to_string())
     }
 }
 
@@ -317,15 +320,22 @@ fn signal_group(pgid: i32, sig: libc::c_int) {
     }
 }
 
-fn wait_for_exit(child: &mut (dyn portable_pty::Child + Send + Sync), window_ms: u64) -> bool {
+fn wait_for_exit(child: &mut (dyn portable_pty::Child + Send + Sync), window_ms: u64) -> Option<portable_pty::ExitStatus> {
     let deadline = std::time::Instant::now() + Duration::from_millis(window_ms);
     while std::time::Instant::now() < deadline {
-        if child.try_wait().ok().flatten().is_some() {
-            return true;
+        if let Some(status) = child.try_wait().ok().flatten() {
+            return Some(status);
         }
         std::thread::sleep(Duration::from_millis(20));
     }
-    false
+    None
+}
+
+fn describe_exit(status: &portable_pty::ExitStatus) -> String {
+    match status.signal() {
+        Some(sig) => format!("ended by signal {sig}"),
+        None => format!("exited with code {}", status.exit_code()),
+    }
 }
 
 #[cfg(test)]
