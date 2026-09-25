@@ -492,13 +492,13 @@ test("an empty corner offers detected sessions by folder, and one click assigns 
   const page = await newPageAt(1280, 800); // sample path: SAMPLE_DETECTED, no backend
   try {
     const picks = await page.$$eval('[data-corner="3"] .pick', (els) => els.map((el) => el.querySelector(".pick-name").textContent));
-    assert.deepEqual(picks, ["THCMCP", "SMO · 2f9d", "SMO · b83a"], "folders name the sessions; a shared folder adds the id's first 4 chars");
+    assert.deepEqual(picks, ["api-server", "webshop · 2f9d", "webshop · b83a"], "folders name the sessions; a shared folder adds the id's first 4 chars");
     const detail = await page.textContent('[data-corner="3"] .pick .pick-detail');
     assert.match(detail, /blocked: permission · Opus 5\.5 · \d+s ago/);
     assert.equal(await page.$eval('[data-corner="3"] details.paste', (d) => d.open), false, "the paste box is the fallback, closed");
 
     await page.click('[data-corner="3"] .pick[data-session-id^="2f9d"]');
-    assert.equal(await page.textContent('[data-corner="3"] h2'), "SMO · 2f9d");
+    assert.equal(await page.textContent('[data-corner="3"] h2'), "webshop · 2f9d");
     assert.match(await page.textContent('[data-corner="3"]'), /no snapshot yet/);
   } finally {
     await page.close();
@@ -509,17 +509,17 @@ test("live: a picked session is registered and saved under its folder name; take
   const now = Math.floor(Date.now() / 1000);
   const detected_sessions = [
     { session_id: "sess-zofia", cwd: "/home/u/Projects/Zofia", project: "Zofia", activity: "ready", last_active: now - 5, model: null },
-    { session_id: "sess-smo", cwd: "/home/u/Projects/SMO", project: "SMO", activity: "idle", last_active: now - 90, model: "Sonnet 5" },
+    { session_id: "sess-web", cwd: "/home/u/code/webshop", project: "webshop", activity: "idle", last_active: now - 90, model: "Sonnet 5" },
   ];
   const page = await newLivePageAt(1280, 800, { detected_sessions });
   try {
     await page.waitForSelector('[data-corner="0"] .pick');
-    await page.click('[data-corner="0"] .pick[data-session-id="sess-smo"]');
+    await page.click('[data-corner="0"] .pick[data-session-id="sess-web"]');
     await page.waitForSelector('[data-corner="0"] h2');
-    assert.equal(await page.textContent('[data-corner="0"] h2'), "SMO");
+    assert.equal(await page.textContent('[data-corner="0"] h2'), "webshop");
     const calls = await page.evaluate(() => window.__zofiaTest.calls);
-    assert.ok(calls.some(([c, a]) => c === "register_session" && a.sessionId === "sess-smo"));
-    assert.deepEqual(calls.find(([c]) => c === "assignment_set")?.[1], { corner: 0, sessionId: "sess-smo", label: "SMO" });
+    assert.ok(calls.some(([c, a]) => c === "register_session" && a.sessionId === "sess-web"));
+    assert.deepEqual(calls.find(([c]) => c === "assignment_set")?.[1], { corner: 0, sessionId: "sess-web", label: "webshop" });
     const left = await page.$$eval('[data-corner="1"] .pick', (els) => els.map((el) => el.dataset.sessionId));
     assert.deepEqual(left, ["sess-zofia"], "an assigned session is not offered again");
   } finally {

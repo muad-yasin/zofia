@@ -45,7 +45,7 @@ note its text.
 
 The corners read the state files the reader shim writes (installed 2026-09-22), one per
 Claude Code session. Every empty corner lists the sessions it has found, newest first,
-named by their folder (`SMO`, `Zofia`; two sessions in one folder get the id's first four
+named by their folder (`webshop`, `Zofia`; two sessions in one folder get the id's first four
 characters too), with what each is doing and when it last did something. Click one to
 show it in that corner. A session started before 2026-09-24's shim update shows as
 "session 1a2b3c4d" until its next event records its folder.

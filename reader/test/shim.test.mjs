@@ -192,13 +192,13 @@ test("both writers record the session's cwd; a payload without one keeps the las
     let state = JSON.parse(await readFile(path.join(dir, "sess-cwd.json"), "utf8"));
     assert.equal(state.cwd, "/home/u/Projects/Zofia");
 
-    await runScript("statusline-wrapper.sh", JSON.stringify({ session_id: "sess-cwd", workspace: { current_dir: "/home/u/Projects/SMO" } }), env);
+    await runScript("statusline-wrapper.sh", JSON.stringify({ session_id: "sess-cwd", workspace: { current_dir: "/home/u/code/webshop" } }), env);
     state = JSON.parse(await readFile(path.join(dir, "sess-cwd.json"), "utf8"));
-    assert.equal(state.cwd, "/home/u/Projects/SMO");
+    assert.equal(state.cwd, "/home/u/code/webshop");
 
     await runScript("hook-writer.sh", JSON.stringify({ session_id: "sess-cwd", hook_event_name: "Stop" }), env);
     state = JSON.parse(await readFile(path.join(dir, "sess-cwd.json"), "utf8"));
-    assert.equal(state.cwd, "/home/u/Projects/SMO");
+    assert.equal(state.cwd, "/home/u/code/webshop");
     assert.equal(state.latest_hook_event.hook_event_name, "Stop");
   });
 });

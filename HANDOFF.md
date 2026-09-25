@@ -73,9 +73,9 @@ PLAN.md names) — no external reviewer/checker tool is assumed.
 
 **"Read HANDOFF.md and begin."**
 
-## Edits by C&C (thcmcp-aa), 2026-09-22
+## Edits by C&C, 2026-09-22
 
-The council's handoff is in THCMCP `runs/2026-09-22T16-38-54-363Z/HANDOFF.md`, unedited. This copy got three
+The council's handoff is kept unedited in the council run's record, outside this repo. This copy got three
 changes: item 2 runs after item 1 rather than in parallel, per CLAUDE.md's usage budget; item 4's
 gate reference is corrected from item 7 to item 8; and item 7 gets the acceptance test it was missing.
 Item 9 (scope-ledger lint) was added later the same day, after the blind comparison.

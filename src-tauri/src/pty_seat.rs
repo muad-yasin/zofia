@@ -7,7 +7,7 @@
 // "there's no code path for it" (HANDOFF.md item 4's own acceptance wording).
 //
 // The kill-then-confirm shape and the env allowlist are adapted from Sophi-A's
-// claudeCodeSubprocess.js (~/Projects/sophi-a/src/orchestrator/adapters/
+// claudeCodeSubprocess.js (Sophi-A's src/orchestrator/adapters/
 // claudeCodeSubprocess.js) — that file spawns a headless, non-interactive `claude -p ...
 // --output-format stream-json` subprocess per turn, not a PTY, so only the safety
 // patterns carry over, not the mechanism, and not verbatim (see PtySeat::stop's own doc
@@ -477,7 +477,7 @@ mod tests {
 
         // A real registered corner session_id shape (item 3's own convention), not the
         // center seat's — this is exactly HANDOFF.md item 4's literal acceptance wording.
-        let result = seat.write_input("d55b834d-d581-4891-9429-5afbe96e9f96", b"should never arrive\n");
+        let result = seat.write_input("0b1e2c3d-4a5b-4c6d-8e7f-901a2b3c4d5e", b"should never arrive\n");
         assert!(result.is_err(), "expected the ownership check to reject a non-center session_id");
 
         // Prove nothing was actually written: no HEARD line ever shows up. This is
@@ -512,7 +512,7 @@ mod tests {
         let rx = spawn_reader_channel(reader);
         read_until(&rx, "MOCK-CLAUDE-READY", 4096);
 
-        assert!(seat.resize("d55b834d-d581-4891-9429-5afbe96e9f96", 40, 120).is_err());
+        assert!(seat.resize("0b1e2c3d-4a5b-4c6d-8e7f-901a2b3c4d5e", 40, 120).is_err());
         seat.resize(CENTER_SEAT_SESSION_ID, 40, 120).expect("resize of the owned seat");
         // The mock echoes `stty size` on the line "SIZE".
         seat.write_input(CENTER_SEAT_SESSION_ID, b"SIZE\n").unwrap();

@@ -6,6 +6,13 @@ change behaviour.
 
 ## Unreleased
 
+### Changed
+- The app identifier is now `de.sower_industries.zofia` (was `de.sower.zofia`). The
+  webview's data directory moves with it. If you ran a local 0.1 or 0.2 build, the old
+  `~/.local/share/de.sower.zofia/` holds webview cache only and can be deleted. Corner
+  assignments are unaffected (they live in `$XDG_RUNTIME_DIR/zofia/`).
+- Sample and test data use neutral project names.
+
 ## 0.2.0 (2026-09-25, not released as a build)
 
 "Ready for strangers": the repo can be read, built and installed by someone who isn't the

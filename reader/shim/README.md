@@ -30,7 +30,7 @@ the CLI renders; `src-tauri/src/session_reader.rs` is its Rust port for the GUI.
                                  // check (kill -0), never a timeout guess.
   "updated_at": 1700000000,     // set on every write
   "first_seen_at": 1700000000,  // set once, on the first write only
-  "cwd": "/home/u/Projects/SMO", // the session's folder (statusline workspace.current_dir
+  "cwd": "/home/u/code/webshop", // the session's folder (statusline workspace.current_dir
                                  // or hook cwd); names it in the corner picker. A payload
                                  // without one keeps the last.
   "turn_started_at": 1700000000, // set on UserPromptSubmit only: the turn the duration

@@ -10,7 +10,7 @@ deleted, never rewritten in place.
 ## Where we are — 2026-09-23
 
 Items 1-5 and 9 are done and pushed (item 5's signature step waits on the owner's key).
-Two builders share the checkout (owner's call, 2026-09-23). zofia-8b closed item 5; zofia-26 has
+Two builders share the checkout (owner's call, 2026-09-23). Builder A closed item 5; builder B has
 closed items 7 and 9 and its share of the item 1-3 audit fixes (#2-#9 in
 `Review/Verify_Items1-3_2026-09-23.md`).
 
@@ -58,22 +58,22 @@ session must never do"; `PLAN.md` §9.2).
 
 ## Owner decisions gating progress (`PLAN.md` §10, numbered as there)
 
-1. ✅ **Read Anthropic's ToS himself** — 2026-09-23, relayed by C&C: "ordinary,
-   individual usage ... OK to proceed" (`DECISIONS.md`). Item 8 still waits on the
+1. ✅ **Read Anthropic's ToS himself** — owner decision, 2026-09-23: OK to proceed
+   (`DECISIONS.md`). Item 8 still waits on the
    clearance file he creates himself (`docs/ITEM-8-CHECKLIST.md`).
 2. ✅ **Confirm the statusline-shim install doesn't conflict with his setup** — done
    2026-09-22, install applied and independently verified safe.
 3. Not done — **Measure his actual screen.** Replaces §4's placeholder
    breakpoint/pane-floor pixel values (1280px/900px, 480×320) with real ones; not
    urgent, the shell already works and is tested against the placeholders.
-4. ✅ **Pick the actual C&C model** — resolved 2026-09-23, relayed via thcmcp-aa:
-   "Sonnet, latest build" (Claude Code's own `sonnet` alias, not a pinned dated id). See
+4. ✅ **Pick the actual C&C model** — owner decision, 2026-09-23:
+   Sonnet, latest build (Claude Code's own `sonnet` alias, not a pinned dated id). See
    `DECISIONS.md`.
 5. Situational, not one-time — **Authorize any escalation past the safest response**,
    each time a §8 falsification trigger actually fires.
 6. Not done — **Confirm whether Windows packaging is ever reopened.** Not blocking
    anything currently building.
-7. ✅ (default only) — **Decide real effort-tier values.** 2026-09-23, relayed by C&C:
+7. ✅ (default only) — **Decide real effort-tier values.** owner decision, 2026-09-23:
    default = Medium. The seat launches with `--effort medium` (`DECISIONS.md`). Per-model
    levels and their costs are still unmeasured.
 

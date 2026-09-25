@@ -4,7 +4,7 @@
 file is what to do next, the bottom is context that no longer needs a decision. Anything
 completed or retired lives in `TODO-Archive.md`; this file is what is still owed.*
 
-*Two rules keep it useful, the same discipline `~/Projects/SMO/TODO.md` already uses:
+*Two rules keep it useful, the same discipline the owner's other projects use:
 **completed work moves to the archive in the same session it closes**, and the
 **PRIORITY NOW block is re-pointed whenever what's next actually changes** — a top block
 describing yesterday is the failure mode this exists to fix. Long narrative belongs in
@@ -30,7 +30,7 @@ change, rebuild the AppImage (`npm run build:appimage`) before the next containe
    been generated. It's his key and his choice of tool (e.g. GPG or minisign).
 
 1. **Create the item 8 clearance file himself** (`docs/ITEM-8-CHECKLIST.md` step 2).
-   His ToS read is done (2026-09-23, relayed by C&C; see `DECISIONS.md`). The file is the
+   His ToS read is done (owner decision, 2026-09-23; see `DECISIONS.md`). The file is the
    last gate before the real-subscription center-seat probe. No session may create it.
 2. **Measure his actual screen** — replaces §4's placeholder breakpoint/pane-floor pixel
    values with real ones. Not urgent; the shell already works and is tested against the
@@ -57,8 +57,8 @@ change, rebuild the AppImage (`npm run build:appimage`) before the next containe
 - **Before the first binary release** (brief 03 items 6, 9 and 10): a signed `SHA256SUMS`
   (brief recommends minisign, key kept offline by the owner), CI, third-party licence notices
   for the AppImage's bundled libraries, the glibc floor, a real icon. The owner decides on
-  the owner-private names in the repo (`de.sower.zofia`, session names, project names in
-  sample data).
+  the owner-private details still in git history (see `DECISIONS.md`, 2026-09-25 privacy
+  pass); the current tree was cleaned that day.
 
 ## Real gaps carried from `DECISIONS.md`, not yet resolved
 
@@ -75,4 +75,4 @@ change, rebuild the AppImage (`npm run build:appimage`) before the next containe
 ---
 
 *First archive move: "pick the actual C&C model" closed 2026-09-23 (owner decision,
-relayed by thcmcp-aa) — see `TODO-Archive.md`.*
+relayed by C&C) — see `TODO-Archive.md`.*

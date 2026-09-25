@@ -1035,7 +1035,7 @@ pub(crate) mod tests {
             assert!(!is_valid_session_id(bad), "{bad:?}");
             assert!(read_session_state(bad).is_err(), "{bad:?}");
         }
-        assert!(is_valid_session_id("d55b834d-d581-4891-9429-5afbe96e9f96"));
+        assert!(is_valid_session_id("0b1e2c3d-4a5b-4c6d-8e7f-901a2b3c4d5e"));
         assert!(is_valid_session_id("sess_1"));
     }
 

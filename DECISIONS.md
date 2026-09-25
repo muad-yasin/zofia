@@ -2,6 +2,9 @@
 
 Judgment calls made while building, and any real bug found — same discipline Sophi-A's
 own build log uses. One dated entry per decision; never rewritten, only added to.
+*One exception, 2026-09-25, for the owner's privacy before the repo went public: relayed
+quotes became one-line owner-decision records, and session names, local paths, private
+project names and a session id were removed. No decision or finding changed.*
 
 ## 2026-09-22 — item 1 (reader spike)
 
@@ -72,18 +75,18 @@ owner's call (PLAN.md §10 decision #2) — asked in chat, not assumed.
 this same machine.** `git log` showed four new commits (`573362b`…`b8acccd`) land
 between when this session started and when item 1 was committed, none of them mine.
 The last one (`b8acccd`) is a genuine C&C edit adding §4's pane floor (480×320px) and
-a "cost of being wrong" appendix — consistent with `FOCUS.md`'s own description of
-cnc-harness-0e finishing the HANDOFF/PLAN copy-in concurrently. Re-read both files in
+a "cost of being wrong" appendix — consistent with the owner's planning board's own description of
+a peer session finishing the HANDOFF/PLAN copy-in concurrently. Re-read both files in
 full before starting item 2 rather than building against a stale copy; the pane floor
 is incorporated below. Worth naming because it could easily have gone unnoticed — file
-sizes changed but no system notice flagged it the way CLAUDE.md's/FOCUS.md's own edits
+sizes changed but no system notice flagged it the way CLAUDE.md's and the planning board's own edits
 were flagged.
 
 **Reused Sophi-A's exact build-tool versions (Vite ^8.0.16, TypeScript ~6.0.3,
 @tauri-apps/cli ^2) rather than picking current latest.** PLAN.md §1 row 1 calls the
 Tauri+vanilla-TS stack "kept-unchanged" — read as continuity with the actual toolchain
 Sophi-A already runs, not just the architecture. Same reasoning for reusing Sophi-A's
-CSS custom-property palette (`~/Projects/sophi-a/src/styles.css`) rather than inventing
+CSS custom-property palette (Sophi-A's `src/styles.css`) rather than inventing
 a new one: same owner, same eventual license, already accessibility-considered (its own
 comment: "icon+label+color always together, never color alone"). Dev server ports moved
 1420/1421 → 1430/1431 so a concurrently-running Sophi-A dev server isn't port-blocked.
@@ -143,7 +146,7 @@ was additive only — statusLine wrapped (original command preserved via
 previously zero. Original backed up to `~/.claude/zofia/settings.json.<ts>.bak` before the write.
 An independent Opus 5 read-only audit afterward (diff scoped to exactly those two keys, statusline
 byte-identical output, hook script never hangs on empty/garbage stdin, install-record sha256
-matches the live file, no secrets touched) found it safe. thcmcp-aa separately verified the same
+matches the live file, no secrets touched) found it safe. C&C separately verified the same
 facts from its own session and relayed to the owner.
 
 **Once installed, the shim observes every Claude Code session on the machine, not only the ones
@@ -152,12 +155,12 @@ Zofia's own shell UI displays.** The hooks and statusLine wrapper live in the on
 no filtering by which sessions Zofia happens to be showing. Confirmed in practice: the capture
 directory picked up all five sessions that were running at install time, including this build
 session and unrelated peer sessions, not a chosen subset. Worth stating plainly (flagged by
-thcmcp-aa's independent check) because it's a real scope fact for the privacy requirement in
+C&C's independent check) because it's a real scope fact for the privacy requirement in
 `CLAUDE.md`, not just an implementation detail — anyone deciding whether to run the installer
 should know it's machine-wide, not opt-in per session.
 
-**The live 10-minute capture ran for real, against this session's own id
-(`d55b834d-d581-4891-9429-5afbe96e9f96`), closing item 1's last open acceptance test.**
+**The live 10-minute capture ran for real, against this session's own id,
+closing item 1's last open acceptance test.**
 `zofia-reader.mjs --session <this session>` returned valid JSON with all nine keys (`tokenSpend`
 counted once per the earlier reconciliation), each with a `source`, `observed_at` timestamps ~627s
 after install — genuinely spanning the window, not a re-run snapshot — and `activityState`
@@ -178,13 +181,13 @@ actively-written real session — the source-level guarantee (no transcript-read
 what actually proves the claim there, not atime-watching. Worth remembering if a future check
 tries to verify "nothing read this file" against a real session again.
 
-**thcmcp-aa's independent read of the same close-out caught two real gaps, both
+**C&C's independent read of the same close-out caught two real gaps, both
 confirmed against the repo before fixing.** (1) `docs/field-availability.md` rows 6, 8,
 9 still said "not yet — doc-only until a live capture" after the capture had already
 happened; HANDOFF item 1's instruction to fill the nine rows with real measured values
 is separate from the acceptance test passing, and the close commit only touched
 DECISIONS.md/PROGRESS.md. Fixed: rows 3, 4, 6, 8, 9 now cite the real captured values
-(`cost.total_cost_usd: 18.13…`, `context_window` token counts, a live `PreToolUse`/`Bash`
+(a real `cost.total_cost_usd` value, `context_window` token counts, a live `PreToolUse`/`Bash`
 hook event), and the file's intro/"still open" sections no longer say the capture hasn't
 happened.
 
@@ -265,14 +268,12 @@ rather than left to compound.
 
 ## 2026-09-23 — owner decision 4 resolved (`PLAN.md` §10, item 4's C&C model)
 
-**The owner's own words, relayed by thcmcp-aa (the C&C seat) from the C&C chat, not
-typed directly into this session:** *"C&C model is Sonnet, latest build."* Read as: the
-center seat launches with Claude Code's own `sonnet` alias (matches the real
-`~/.claude/settings.json` shape already seen during item 1's install — `"model":
-"sonnet"`, not a pinned dated snapshot id), always resolving to whatever Sonnet build is
+Owner decision, 2026-09-23 (relayed by C&C): the C&C model is Sonnet, latest build. Read as: the
+center seat launches with Claude Code's own `sonnet` alias (not a pinned dated snapshot id),
+always resolving to whatever Sonnet build is
 current, not a fixed model id frozen at build time. This is a relay of a decision, not a
 work instruction — `HANDOFF.md`'s own order still governs what gets built and when;
-recording the fact now doesn't start item 4 early. thcmcp-aa independently re-verified
+recording the fact now doesn't start item 4 early. C&C independently re-verified
 the last two commits (`75c34e7`, `d0e901e`) against the repo before relaying — 36/36
 reader and 16/16 Rust tests, and confirmed the hygiene commit deleted nothing and
 changed no code — consistent with what this session already knows to be true.
@@ -283,14 +284,14 @@ in `ROADMAP.md`/`TODO.md`/`TODO-Archive.md`. The concrete config value (whatever
 latest") is item 4's own build work, not written here — this entry records the decision,
 not the implementation.
 
-## 2026-09-23 — items 7 and 9 (zofia-26, builder B)
+## 2026-09-23 — items 7 and 9 (builder B)
 
 - **Item 7: the schema validator is hand-written, not ajv.** It has zero dependencies
   and implements only the keywords `providers.schema.json` uses. It throws on any
   other keyword, so the schema can't rely on a rule that is silently not enforced.
 - **Item 7: `build.rs` now needs Node on PATH.** It generates the gitignored
   `src-tauri/src/generated/providers.rs`, so a fresh clone's `cargo test` works. Without
-  Node it panics with a message saying so (zofia-8b's request).
+  Node it panics with a message saying so (builder A's request).
 - **Item 7: all effort values ship as `UNKNOWN`.** `docs/field-availability.md` row 2
   proves effort is *exposed*, but not which levels exist per model, or which key a
   CLI-spawned seat's effort goes in. Nothing was invented. Owner decision 2 fills them
@@ -308,7 +309,7 @@ not the implementation.
 - **Process note:** C&C's instruction to fix the item 1-3 audit regressions *before*
   item 9 arrived after item 9 was already committed. The regressions are next.
 
-## 2026-09-23 — item 4 (zofia-8b, builder A)
+## 2026-09-23 — item 4 (builder A)
 
 - **Real bug: portable-pty 0.9's cloned `ChildKiller` sends SIGHUP only.** Read in the
   crate source (`ProcessSignaller::kill`): no escalation. Only `Child::kill` on the child
@@ -341,17 +342,17 @@ not the implementation.
   The baseline is taken before spawn, so a write at startup counts as a change.
 - **xterm.js 6** with `@xterm/addon-fit` 0.11 (the pair released together).
 
-## 2026-09-23 — audit fixes #2, #4, #8 (zofia-26)
+## 2026-09-23 — audit fixes #2, #4, #8 (builder B)
 
 - **Real bug, found while fixing #8:** `computeInstallPatch` recognised its own
   statusLine wrapper by a case-sensitive `"zofia"` match. The owner's checkout is
-  `~/Projects/Zofia`, so any re-install there wrapped the wrapper a second time. Fixed
+  named `Zofia` (capital Z), so any re-install there wrapped the wrapper a second time. Fixed
   (case-insensitive, anchored on `/statusline-wrapper.sh`). His live settings are wrapped
   once today, so it never fired for real.
 - **Correction (same day):** an earlier version of this entry said the owner's live
   `install-record.json` lists 0 injected hooks. That was a misread: a jq filter of mine
   piped `.original_statusline` into the hook count. The record has all 6 hooks, matching
-  his settings, so his uninstall works as designed. thcmcp-31 caught it. Nothing under
+  his settings, so his uninstall works as designed. C&C caught it. Nothing under
   `~/.claude` was written.
 - **#2: the merge is top-level `+`, not a per-key rule.** Each shim writer owns exactly
   one top-level key, so replacing whole keys is correct, and it also stops stale
@@ -370,7 +371,7 @@ not the implementation.
   (xterm.js needs them) and the IPC origins. `main.ts` now shows a wiring failure as a
   visible alert instead of `void`-ing it.
 
-## 2026-09-23 — audit fixes #3, #5, #6, #9 (zofia-26)
+## 2026-09-23 — audit fixes #3, #5, #6, #9 (builder B)
 
 - **#3: tick every 15s, not every 120s.** 120s is the stale *threshold*. Ticking at the
   same interval would let a dead session read "running tool" for up to ~240s. 15s
@@ -386,7 +387,7 @@ not the implementation.
   on type mismatches. The error is now at least named correctly. Per-field tolerant
   parsing is a separate change, not made here.
 
-## 2026-09-23 — Rust reader per-field parsing (zofia-26)
+## 2026-09-23 — Rust reader per-field parsing (builder B)
 
 - **Resolves the "#9, still open" note above.** Instead of per-field `deserialize_with`
   wrappers, the parser runs a type check against a path table, then does the existing
@@ -398,7 +399,7 @@ not the implementation.
 - **Remaining difference, wording only:** for a mistyped value the Node reader says "not
   yet observed", and the Rust reader says "present but mistyped". Both show UNKNOWN.
 
-## 2026-09-23 — item 6 harness (zofia-26)
+## 2026-09-23 — item 6 harness (builder B)
 
 - **strace, not a home-made tracer.** `strace` and `Xvfb` are missing, and gcc/ptrace
   would allow a custom tracer. But a hand-written ptrace tracer is exactly the kind of
@@ -417,7 +418,7 @@ not the implementation.
 - **Early exit is INCONCLUSIVE.** An app that crashes at startup sends nothing, and that
   must not read as a pass.
 
-## 2026-09-23 — item 4 audit fixes (zofia-26)
+## 2026-09-23 — item 4 audit fixes (builder B)
 
 - **The tool policy uses the CLI's own `--restricted`.** `claude --help` (2.1.280) says
   it drops the code-running tools and WebFetch, ignores user/project/local settings
@@ -435,7 +436,7 @@ not the implementation.
   freezes. With workdir = $HOME it still hashes ~70 MiB every 5s. Caching by mtime is a
   possible follow-up, not done.
 
-## 2026-09-23 — PROPOSAL for the owner: should corner assignments survive a restart? (zofia-26, no code)
+## 2026-09-23 — PROPOSAL for the owner: should corner assignments survive a restart? (no code)
 
 **The gap (TODO.md):** each corner's session_id is typed by hand and lost when the GUI
 closes. PLAN.md §2.1 wants registration to be deliberate, never auto-discovery. Its own
@@ -448,7 +449,7 @@ a reboot anyway.
 
 | | A. Don't persist; offer a picker | B. Persist until reboot (recommended) | C. Persist on disk |
 |---|---|---|---|
-| Where | nothing stored; the assign box lists the ids that have a state file right now | `$XDG_RUNTIME_DIR/zofia/assignments.json`, next to the session files (0600, dir 0700, tmpfs) | `~/.config/de.sower.zofia/assignments.json` (0600) |
+| Where | nothing stored; the assign box lists the ids that have a state file right now | `$XDG_RUNTIME_DIR/zofia/assignments.json`, next to the session files (0600, dir 0700, tmpfs) | `~/.config/de.sower_industries.zofia/assignments.json` (0600) |
 | Format | none | `{"version":1,"corners":[{"corner":0,"session_id":"<uuid>","label":"…","assigned_at":<epoch>}]}`, written atomically on every assign or clear | same as B |
 | Survives | nothing | a GUI restart or crash, not a reboot: the same lifetime as the data it points at | everything, including ids that are long dead |
 | "Deliberate" | every launch is a fresh choice, but one click instead of pasting a UUID | the owner's choice is restored, not remade, and marked "restored" with a one-click "clear all" | as B, but it resurrects choices from past boots |
@@ -464,7 +465,7 @@ the owner wants every launch to be a fresh choice.
 
 **Needs the owner:** pick A, B, B+A or C. Nothing is built until he does.
 
-## 2026-09-23 — sweep cache and item 4 backlog (zofia-26)
+## 2026-09-23 — sweep cache and item 4 backlog (builder B)
 
 - **The cache key includes ctime.** (size, mtime, inode) alone would skip a same-size
   edit whose mtime was reset, and C&C asked for exactly that case to be caught. The
@@ -482,7 +483,7 @@ the owner wants every launch to be a fresh choice.
 - **A full input queue refuses instead of blocking.** A child that stops reading gets
   new input dropped with an error the frontend can show, instead of freezing the GUI.
 
-## 2026-09-23 — item 5 (zofia-8b)
+## 2026-09-23 — item 5 (builder A)
 
 - **`NO_STRIP=true` for the AppImage build.** linuxdeploy's bundled `strip` fails on the
   `.relr.dyn` sections of Fedora 44's libraries. Skipping the strip gives a bigger
@@ -499,18 +500,18 @@ the owner wants every launch to be a fresh choice.
   (`LockedHint=yes`): no frames, so `requestAnimationFrame` never fires and xterm never
   paints, even though the bytes arrive (the pane's byte counter showed 19). It's
   environmental, but it would look like a Zofia bug, hence this note.
-- **The AppImage embeds the mock's bytes** (zofia-26's content gate, `2427f96`), so any
+- **The AppImage embeds the mock's bytes** (builder B's content gate, `2427f96`), so any
   mock edit needs a rebuild before a container run.
 - **A byte counter on the terminal host** (`data-bytes-in`): a count only, never content.
   It tells "no events" apart from "not painted".
 
-## 2026-09-23 — correction to the decision-4 entry, and roll-up fixes (zofia-26)
+## 2026-09-23 — correction to the decision-4 entry, and roll-up fixes (builder B)
 
-- **Correction (dated, the entry above is left as written):** the decision-4 entry says
-  the owner's `~/.claude/settings.json` shows `"model": "sonnet"`. It shows `opus[1m]`
-  (C&C checked; roll-up 2026-09-23). The decision itself stands: the center seat
-  launches with `sonnet`. The wrong parenthetical mattered. Until `ef0c6d3` the seat sent
-  no `--model`, so it ran his `opus[1m]` default, never Sonnet. Rust now falls back to
+- **Correction (dated):** an earlier version of the decision-4 entry claimed the owner's own
+  settings already defaulted to `sonnet`. They didn't (C&C checked; roll-up 2026-09-23). The
+  decision itself stands: the center seat launches with `sonnet`. The wrong claim mattered.
+  Until `ef0c6d3` the seat sent no `--model`, so it ran the owner's own default model,
+  never Sonnet. Rust now falls back to
   `config/providers.json`'s default.
 - **Item 8 gate: never execute the disk file.** Content-matching the file still let a
   PATH-planted `bash` run instead (the mock's `#!/usr/bin/env bash`), and left a
@@ -521,17 +522,14 @@ the owner wants every launch to be a fresh choice.
 
 ## 2026-09-23 — OWNER DECISION: session-assignment persistence = option B
 
-**Muad's words, relayed by C&C (thcmcp-31):** *"Idk a b or c, but temporary folder
-sounds fine."* Read as option B from the proposal above:
+Owner decision, 2026-09-23: a temporary folder is fine. Read as option B from the proposal above:
 `$XDG_RUNTIME_DIR/zofia/assignments.json`, restored across a GUI restart, gone at reboot,
 restored corners marked "restored", with a one-click "clear all". No picker (option A's
 extra wasn't asked for).
 
 ## 2026-09-23 — OWNER DECISION 2: center-seat default effort = Medium
 
-**Muad's words, relayed by C&C (thcmcp-31), not typed into this session:** *"I'd go with
-Medium as the default"*. The board (`~/Projects/FOCUS.md`) has the same call: "Zofia
-decision 2: effort default = Medium".
+Owner decision, 2026-09-23: the center seat's default effort is Medium.
 
 - `config/providers.json` gets `default_effort: medium`, sourced to this entry. The
   generator emits `DEFAULT_EFFORT` to TS and Rust.
@@ -543,11 +541,11 @@ decision 2: effort default = Medium".
   then. `crossCheck` requires the default to be one of the default model's measured
   levels once they exist, so a later measurement can't silently drop it.
 
-## 2026-09-23 — OWNER DECISION 1: his own ToS read (item 8 gate, first half)
+## 2026-09-23 — OWNER DECISION 1: the owner's own ToS read (item 8 gate, first half)
 
-**Muad's words, relayed by C&C (thcmcp-31), not typed into this session:** *"always a
-human giving the C&C session instructions ... this is 'ordinary, individual usage' ... I
-think this concept is OK to proceed"*. This is his reading of Anthropic's consumer terms.
+Owner decision, 2026-09-23: having read Anthropic's consumer terms himself, the owner judges the
+center-seat concept acceptable to proceed with, on the premise that a human always gives the C&C
+seat its instructions. This is his reading of those terms.
 Nothing in this repo interprets them for him (PLAN.md §10 decision 1), and no session
 checked his reading.
 
@@ -564,7 +562,7 @@ checked his reading.
 
 ## 2026-09-23 — decision 2 applied: the seat launches with `--effort medium`
 
-C&C (thcmcp-31) checked `claude --help` for 2.1.280 and found `--effort <level>`,
+C&C checked `claude --help` for 2.1.280 and found `--effort <level>`,
 "Effort level for the current session (low, medium, high, xhigh, max)". This session
 confirmed the same strings in the installed 2.1.280 binary without running the CLI. That
 check is now `docs/field-availability.md#cli-effort-flag`, and `effort_key` is `--effort`
@@ -578,7 +576,7 @@ decision-2 entry above. That entry is left as written.
 
 ## 2026-09-24 — the full-grid breakpoint follows the pane floor (quality check Q7)
 
-The owner said go on the quality check's medium items ("Let's start with them then"). Q7
+Owner decision, 2026-09-24: go ahead with the quality check's medium items. Q7
 showed `BREAKPOINT_FULL = 1280` dropping two corners that fit: at 1024 px both remaining
 panes were ~490 px wide. The breakpoint is now derived, `2 × PANE_FLOOR_WIDTH + 3 × gap`
 (996 px), so the 2×2 grid shows whenever two corners fit side by side at the floor. The
@@ -587,25 +585,25 @@ panes were ~490 px wide. The breakpoint is now derived, `2 × PANE_FLOOR_WIDTH +
 
 ## 2026-09-25 — the repo goes public (owner's call)
 
-The owner, to C&C: *"I also want to make Zofia open source, can you also scan it for secrets and
-then change it to public?"* This opens `PLAN.md` §9.2 item 3 (the public release) early; the
+Owner decision, 2026-09-25: make Zofia open source, after a secret scan. This opens `PLAN.md` §9.2 item 3 (the public release) early; the
 year-1 build order is unchanged. Before the flip, C&C scanned all 80 commits on every branch for
 API keys, tokens and private-key headers (none), and for tracked `.env`, transcripts, `BOARD*`,
-`-cheap` copies or `Review/` files (none; they stay gitignored). One real Claude Code session id is
-quoted in the 2026-09-23 item-1 entry; it is not a credential. `LICENSE` (Apache-2.0, the same text
+`-cheap` copies or `Review/` files (none; they stay gitignored). A real Claude Code session id was
+quoted in the 2026-09-22 item-1 entry; it is not a credential, and the 2026-09-25 privacy pass
+removed it. `LICENSE` (Apache-2.0, the same text
 and holder as Sophi-A's) was added, matching `package.json`.
 
 ## 2026-09-25 — licence: Apache-2.0 → MIT (owner's call)
 
-The owner, to C&C, the same day the repo went public: *"I want to make sophia and zofia MIT license
-too"*, matching The High Council (MIT). `LICENSE` is now the MIT text with the same holder as THCMCP's
+Owner decision, 2026-09-25, the day the repo went public: Zofia (and Sophi-A) move to MIT, matching
+The High Council. `LICENSE` is now the MIT text with the same holder as The High Council's
 (Sower Industries); `package.json`, `package-lock.json` and `src-tauri/Cargo.toml` follow. The copy
 published under Apache-2.0 between the two commits stays available under Apache-2.0 to anyone who took
 it; that cannot be withdrawn and doesn't need to be. Bundled fonts keep their own licences.
 
 ## 2026-09-25 — honest states: blocked, your turn, failed (research brief 04, P2)
 
-C&C dispatch (zofia-3b, "Zofia 0.2.0 ready for strangers"), from `zofia-research`'s brief 04.
+C&C dispatch ("Zofia 0.2.0 ready for strangers"), from research brief 04 (a private research repo).
 **The bug:** an API error (rate limit, overload, auth) ends a turn with `StopFailure`, not `Stop`
 (Claude Code hooks docs, fetched 2026-09-25: the two are alternative turn endings). The shim
 never registered `StopFailure`, so the last event stayed a working one and the corner read
@@ -668,7 +666,7 @@ ever comes up.
 
 ## 2026-09-25 — the "needs you" queue (research brief 04, P1), on the new states
 
-C&C dispatch, item 2. The brief's patch (`zofia-research` `results/04-command-deck-ux/patch.diff`)
+C&C dispatch, item 2. The brief's patch (kept in the private research repo)
 applied except one `cardView.ts` hunk, since it predates the blocked / your turn / failed split
 above. Adapted rather than taken verbatim:
 
@@ -682,7 +680,7 @@ above. Adapted rather than taken verbatim:
   seen", applied to the queue rather than to the headline.
 - The window title count, the corner frame, the tab-strip mark and the one screen-reader
   announcement per new wait are as the brief built them. An announcement now names the state
-  (`THCMCP: blocked: permission`) and fires again when a seen session starts a new wait.
+  (`api-server: blocked: permission`) and fires again when a seen session starts a new wait.
 - A new axe test fires one session of each kind, because the sample data has no waiting
   session and the two existing contrast tests never saw these colours.
 
@@ -705,8 +703,8 @@ suite locale-proof and able to exit. Changed on top of the brief:
   citing Microsoft's docs), which breaks zero egress. The README says it is untested.
 - CONTRIBUTING's model rule reads "no xAI/Grok or Kimi/Moonshot model ids, and no router
   that may pick one", matching the guard. The brief had "no xAI/Grok models **or tools**".
-  The owner has said agent CLIs that *can* route to Grok may be seats ("Keep them, no need to
-  over-restrict"), so "tools" would have contradicted him.
+  Owner decision, 2026-09-25: agent CLIs that *can* route to Grok may be seats, so "tools"
+  would have contradicted that.
 - AppImage-only users still can't install the hooks. That isn't the small change it looks
   like (see `TODO.md`), so it is listed rather than built.
 
@@ -716,9 +714,28 @@ C&C dispatch, item 4. Brief 06's patch applied cleanly: `src-tauri/src/platform.
 the crate asks of the OS (state dir, owner check, private modes, stat key, pid liveness,
 leader exit). The Linux arms are the old code moved verbatim, so Linux behaviour is unchanged
 (cargo 87/87 before and after, `--locked`). The macOS and Windows arms compile per the brief's
-cross-checks (`results/06-other-platforms/check-patched.txt`: 0 errors). This session didn't
+cross-checks (0 errors in the brief's recorded run). This session didn't
 re-run them: the Windows check needs crates that aren't in the local cache. **Nothing is
 declared:** the bundle targets stay AppImage-only. The Windows parts are stubs with named TODOs
 (owner-SID check, Job Object kill), and the owner's platform answer is WSL2, not a native build.
 One new target-only dependency: `windows-sys` 0.61 under `cfg(windows)`, already in the lockfile
 through Tauri. It isn't compiled on Linux.
+
+## 2026-09-25 — app identifier `de.sower_industries.zofia`; privacy pass on the public tree
+
+Owner decision, 2026-09-25: the app identifier is `de.sower_industries.zofia` (the owner's
+domain; a Linux app id can't hold its hyphen). It replaces `de.sower.zofia` in
+`tauri.conf.json` and in the test that searches the app's own dirs. **Data dirs move** with
+it: the webview's `~/.local/share/<identifier>/` (and `.config`/`.cache`, if ever created).
+Only a local 0.1/0.2 build ever wrote the old one, and it holds webview cache only. Zofia's
+own state (assignments, session files) lives in `$XDG_RUNTIME_DIR/zofia/`, which the
+identifier doesn't touch. So nothing needs moving: the old
+`~/.local/share/de.sower.zofia/` can simply be deleted.
+
+Same day, a privacy pass on the current tree (owner decision: respect his privacy in everything
+made public). Relayed quotes became one-line owner-decision records. Peer session names became
+"C&C" / "builder A" / "builder B". Private project names in sample and test data became
+neutral ones (`webshop`, `api-server`). Local paths, a real session id (also used as test
+data), a real spend figure and run-record paths were removed. `CLAUDE.md` was not
+touched: it holds the owner's own spec and rules, and only he edits it. Git history still
+has the old text; rewriting it is his call.

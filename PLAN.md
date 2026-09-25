@@ -683,9 +683,9 @@ target mid-document.
 6. **Confirm whether Windows packaging is ever reopened** (§1, §6) — deliberately dropped for v1
    rather than assumed wanted later.
 7. **Decide real effort-tier values** (§5) once the week-1 probe shows what's actually configurable.
-## Appendix: C&C edits (thcmcp-aa), 2026-09-22
+## Appendix: C&C edits (C&C), 2026-09-22
 
-The council's own deliverable is unedited in THCMCP `runs/2026-09-22T16-38-54-363Z/deliverable.md`.
+The council's own deliverable is kept unedited in the council run's record, outside this repo.
 This copy carries two additions, both from a blind comparison against the cheap run's plan, judged by
 a session that saw neither run's identity:
 
@@ -707,7 +707,7 @@ a session that saw neither run's identity:
 - **A later-year roadmap trigger never fires:** nothing is sunk by design. Years 2-7 are gated, not
   committed, so an unfired trigger costs a review, not rework.
 
-## Appendix: C&C edits, 2026-09-25 (zofia-3b, on C&C's dispatch)
+## Appendix: C&C edits, 2026-09-25 (builder session, on C&C's dispatch)
 
 §1 rows 3, 4, 5, 7, 9, 10, 11 and 12 said "kept-unchanged" (or, for 11, "retained in-repo") for
 Sophi-A code or CI that Zofia's tree never had, and row 12 still named Apache-2.0. Research briefs

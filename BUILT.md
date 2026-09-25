@@ -39,7 +39,7 @@ id(s) it serves (HANDOFF.md's own "files to keep current while building" rule).
   `providers.schema.json`, `scripts/gen-providers.mjs` (validator, generator, `--check`
   stale lint), `src-tauri/build.rs` runs it, `test/config/providers.test.mjs`. 17 tests.
   Commit `50ced01`. Part 2 (the runtime guard `provider_guard.rs` + its `lib.rs` line)
-  lands after zofia-8b's item 4 commit.
+  lands after builder A's item 4 commit.
 - 2026-09-23 — Scope-ledger lint (HANDOFF.md item 9, C&C addition; serves the Scope
   ledger itself, no single proposal id). `scripts/check-scope-ledger.mjs`,
   `test/lint/`. 6 tests. Commit `69e561c`.

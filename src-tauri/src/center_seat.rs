@@ -541,7 +541,7 @@ mod tests {
 
     /// PLAN.md §3: "`grep -r` across Zofia's config/cache/log directories finds no scrollback
     /// text." Module level: runs a seat that prints a unique marker, then searches the app's
-    /// own dirs (identifier de.sower.zofia). The whole-app run of this check is item 5's.
+    /// own dirs (identifier de.sower_industries.zofia). The whole-app run of this check is item 5's.
     #[test]
     fn seat_output_never_reaches_zofias_own_dirs() {
         let marker = format!("ZOFIA-SCROLLBACK-MARKER-{}", std::process::id());
@@ -557,7 +557,7 @@ mod tests {
         pty.stop(CENTER_SEAT_SESSION_ID).unwrap();
 
         let home = std::env::var("HOME").unwrap();
-        for dir in [".config/de.sower.zofia", ".cache/de.sower.zofia", ".local/share/de.sower.zofia"] {
+        for dir in [".config/de.sower_industries.zofia", ".cache/de.sower_industries.zofia", ".local/share/de.sower_industries.zofia"] {
             let path = Path::new(&home).join(dir);
             if !path.exists() {
                 continue;

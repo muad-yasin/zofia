@@ -91,7 +91,7 @@ mod tests {
     #[test]
     fn lists_live_sessions_by_folder_newest_first_and_skips_ended_ones() {
         let files = [
-            ("aaaa1111-old.json", format!(r#"{{"pid":1,"cwd":"/home/u/Projects/SMO","latest_hook_event":{}}}"#, hook(100, "Stop"))),
+            ("aaaa1111-old.json", format!(r#"{{"pid":1,"cwd":"/home/u/code/webshop","latest_hook_event":{}}}"#, hook(100, "Stop"))),
             ("bbbb2222-new.json", format!(r#"{{"pid":1,"cwd":"/home/u/Projects/Zofia","latest_hook_event":{}}}"#, hook(200, "SessionStart"))),
             ("cccc3333-dead.json", format!(r#"{{"pid":2,"cwd":"/x/Gone","latest_hook_event":{}}}"#, hook(300, "Stop"))),
             ("dddd4444-ended.json", format!(r#"{{"pid":1,"cwd":"/x/Ended","latest_hook_event":{}}}"#, hook(400, "SessionEnd"))),
@@ -102,7 +102,7 @@ mod tests {
         let refs: Vec<(&str, &str)> = files.iter().map(|(n, b)| (*n, b.as_str())).collect();
         let found = with_dir(&refs, || detect_sessions(1000, &|pid| pid == 1));
         let names: Vec<(&str, &str)> = found.iter().map(|d| (d.project.as_str(), d.session_id.as_str())).collect();
-        assert_eq!(names, vec![("Zofia", "bbbb2222-new"), ("SMO", "aaaa1111-old"), ("session eeee5555", "eeee5555-nocwd")]);
+        assert_eq!(names, vec![("Zofia", "bbbb2222-new"), ("webshop", "aaaa1111-old"), ("session eeee5555", "eeee5555-nocwd")]);
         assert_eq!(found[0].activity.as_deref(), Some("ready"));
         assert_eq!(found[0].last_active, Some(200));
         assert_eq!(found[0].cwd.as_deref(), Some("/home/u/Projects/Zofia"));

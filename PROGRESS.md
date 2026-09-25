@@ -44,7 +44,7 @@ One dated line per item, what's actually done vs. assumed (HANDOFF.md's own conv
 - ✅ **2026-09-22, closed for real.** Owner approved installing into his real
   `~/.claude/settings.json` (PLAN.md §10 decision #2); `install.mjs --apply --yes` run,
   additive only (statusLine wrapped with passthrough, 6 hooks added where there were
-  none), backed up first. An independent Opus 5 read-only audit and thcmcp-aa's own
+  none), backed up first. An independent Opus 5 read-only audit and C&C's own
   separate check both confirmed the edit safe — see `DECISIONS.md`. The 10-minute live
   capture then ran against this session's own id: valid JSON, all nine keys with
   sources, `observed_at` ~627s after install (a real window, not a re-run), and
@@ -55,7 +55,7 @@ One dated line per item, what's actually done vs. assumed (HANDOFF.md's own conv
   source-level fact that `zofia-reader.mjs` has no code path that opens a transcript at
   all.
 
-**Item 1 is fully done — closed twice, the second time for real.** thcmcp-aa's
+**Item 1 is fully done — closed twice, the second time for real.** C&C's
 independent read of the first close-out caught two real gaps before item 3 could start:
 `docs/field-availability.md` rows 6/8/9 still read "not yet" after the capture had
 already happened, and a genuine bug in `deriveSnapshot.mjs` — `rate_limits` and
@@ -72,7 +72,7 @@ field matrix, which now exists and is now actually accurate.
 ## 2026-09-22 — item 2, week 1 Track B: the static shell
 
 **Built and tested against sample data.** Vanilla TypeScript + Tauri v2, kept-unchanged
-per PLAN.md §1 row 1 — same build stack Sophi-A already uses (`~/Projects/sophi-a`),
+per PLAN.md §1 row 1 — same build stack Sophi-A already uses (Sophi-A, a separate repo),
 same palette continued (see `src/styles.css`'s own note), ports moved to 1430/1431 so
 a concurrent Sophi-A dev server on 1420/1421 isn't clobbered.
 
@@ -149,7 +149,7 @@ conversion has never fired at runtime; it relies on Tauri v2's documented defaul
 camelCase/snake_case convention, not a test that proves it end-to-end. See
 `DECISIONS.md`.
 
-## 2026-09-23 — item 7, provider/effort config (zofia-26, builder B)
+## 2026-09-23 — item 7, provider/effort config (builder B)
 
 **Done, part 1 (`50ced01`):** `config/providers.json` is the only authority; the
 schema rejects any grok/xAI model id, provider id, alias name, alias target or default
@@ -163,21 +163,21 @@ fails on an unregenerated edit; every effort value is `UNKNOWN` or tagged to
 **Written, not yet committed, part 2:** `src-tauri/src/provider_guard.rs`, the runtime
 rejection (typed id or alias target), independent of the schema. It passes 5/5 compiled
 standalone (`rustc --test`), but it isn't in the crate yet: its `mod` line goes into
-`lib.rs` in one commit after zofia-8b's item 4 lands, as agreed. Until then the
+`lib.rs` in one commit after builder A's item 4 lands, as agreed. Until then the
 "runtime rejection fires with the schema bypassed" leg is proven standalone only, and no
-spawn path calls it yet (zofia-8b wires it into the center seat's `--model`).
+spawn path calls it yet (builder A wires it into the center seat's `--model`).
 
 **Not verified:** the `build.rs` "Node not on PATH" error message was read, not
 triggered.
 
-## 2026-09-23 — item 9, scope-ledger lint (zofia-26)
+## 2026-09-23 — item 9, scope-ledger lint (builder B)
 
 **Done (`69e561c`):** `npm run lint:ledger` exits 1 on
 `test/lint/fixtures/plan-broken-ledger.md` and 0 on the real `PLAN.md`; `npm run
 test:lint` 6/6. The real PLAN.md has three ledger-only ids, reported as warnings (see
 `DECISIONS.md`).
 
-## 2026-09-23 — item 4, center seat against a mock (zofia-8b)
+## 2026-09-23 — item 4, center seat against a mock (builder A)
 
 **Done (`43fc8f9`):** owned-PTY center seat (`pty_seat.rs`), its Tauri commands
 (`center_seat.rs`), the hash sweep (`hash_sweep.rs`), and an xterm.js pane. `cargo test`
@@ -203,10 +203,10 @@ symlink-safe bounded walk, baseline before spawn, process-group kill, env additi
   missing capabilities file (audit #1).
 - The whole-app version of the scrollback grep (only the module level ran).
 
-## 2026-09-23 — item 7 closed; audit fixes #2, #4, #7a, #8 (zofia-26)
+## 2026-09-23 — item 7 closed; audit fixes #2, #4, #7a, #8 (builder B)
 
 - **Item 7 part 2 (`cc09e9a`):** `provider_guard.rs` is in the crate; cargo test 49/49
-  (5 its own). Nothing calls it yet: zofia-8b wires it into `center_spawn`'s `--model`
+  (5 its own). Nothing calls it yet: builder A wires it into `center_spawn`'s `--model`
   path, which today launches only the mock and passes no model.
 - **#2 (`3e4f44d`):** the shim now replaces `latest_*` keys instead of deep-merging.
   Regression test through both shim scripts and the reader CLI; it fails on the old
@@ -218,7 +218,7 @@ symlink-safe bounded walk, baseline before spawn, process-group kill, env additi
   **Not done:** re-installing on the owner's real settings. That needs his go.
 - **#7a (`50ced01`):** `npm test` runs the e2e files by glob.
 
-## 2026-09-23 — audit fixes #3, #5, #6, #7b, #9 (zofia-26)
+## 2026-09-23 — audit fixes #3, #5, #6, #7b, #9 (builder B)
 
 - **#5 + #6 + #7b (`9b7117c`):** a snapshot re-render keeps half-typed assign text,
   the caret and focus. Corner cards now show the reset timer, last-active time and
@@ -231,13 +231,13 @@ symlink-safe bounded walk, baseline before spawn, process-group kill, env additi
   verified:** the ticker's wiring inside `start_watcher` needs a live Tauri app; only the
   ticker and the re-derive behaviour are tested.
 
-## 2026-09-23 — Rust reader per-field parsing (zofia-26, C&C follow-up to audit #9)
+## 2026-09-23 — Rust reader per-field parsing (C&C follow-up to audit #9)
 
 **Done (`43c3704`):** a mistyped value in a session state file now blanks only its own
 field, with a "present but mistyped" reason. The rest of the snapshot still renders.
 cargo test 57/57, including a mistyped-field fixture test.
 
-## 2026-09-23 — item 6, zero-egress audit: harness (zofia-26)
+## 2026-09-23 — item 6, zero-egress audit: harness (builder B)
 
 **Done (`12565ee`):** `npm run audit:egress -- <cmd>` runs the command in an
 unprivileged user+net+pid namespace with only loopback, traces the whole process tree's
@@ -251,7 +251,7 @@ AppImage. `strace` isn't installed (needs the owner's sudo), so the real-strace 
 control skips too. The second §2.3 leg (the real center-seat child's provider traffic,
 attributed to its PID) waits on item 8; `--allow-exe` is built for it.
 
-## 2026-09-23 — item 4 audit fixes (zofia-26; `Review/BugAudit_Item4_CenterSeat_2026-09-23.md`)
+## 2026-09-23 — item 4 audit fixes (builder B; `Review/BugAudit_Item4_CenterSeat_2026-09-23.md`)
 
 **Done (`2427f96`), cargo test 64/64:**
 - #1: the seat launches with §3's allow-list (`--restricted --tools Read,Grep,Glob
@@ -266,11 +266,11 @@ attributed to its PID) waits on item 8; `--allow-exe` is built for it.
 
 **Not verified:** whether the real CLI actually refuses each denied tool under these
 flags. That's §3's probe, which runs with item 8. The frontend doesn't show
-`settings_local_json` yet; that's zofia-8b's `centerSeat.ts`.
+`settings_local_json` yet; that's builder A's `centerSeat.ts`.
 **Backlog, unchanged:** the audit's blocking PTY write, the `setsid` escape, confirmation
 not tied to content, stop latency, and no `PR_SET_PDEATHSIG`.
 
-## 2026-09-23 — sweep cache, audit backlog, persistence proposal (zofia-26)
+## 2026-09-23 — sweep cache, audit backlog, persistence proposal (builder B)
 
 - **Sweep cache (`6d2cdb1`):** the 5s resweep re-reads only files whose (dev, ino,
   size, mtime, ctime) changed. An unchanged tree is re-read 0 times, and a same-size
@@ -283,12 +283,12 @@ not tied to content, stop latency, and no `PR_SET_PDEATHSIG`.
   descendants killed on stop; async stop off the lock.
 - **Not done, with reasons (`DECISIONS.md`):** `PR_SET_PDEATHSIG`; keystroke order
   across WebKit `invoke`s (needs the real window); confirmation tied to file content
-  (needs a `centerSeat.ts` change; asked zofia-8b).
+  (needs a `centerSeat.ts` change; asked builder A).
 - **Proposal (`01e4452`):** session-assignment persistence, options A/B/C. Waiting on
   the owner.
 - cargo test 70/70, reader 41/41.
 
-## 2026-09-23 — audit #1/#10 and item 5, first AppImage (zofia-8b)
+## 2026-09-23 — audit #1/#10 and item 5, first AppImage (builder A)
 
 **Audit #1/#10 (`327b48d`):** `src-tauri/capabilities/default.json` added
 (`core:event:default` only), wiring failures show as a visible alert, `withGlobalTauri`
@@ -312,20 +312,20 @@ process outlives the app. Screenshot reviewed by eye.
 - Only Fedora 44 is declared (`packaging/linux-support.md`). No older baseline yet.
 - Release extras (checksums, inventory, notices, pinned linuxdeploy) are not started.
 
-## 2026-09-23 — roll-up fixes (zofia-26)
+## 2026-09-23 — roll-up fixes (builder B)
 
 - `d5ac0d2`: the egress harness counts resolver sockets as DNS egress, keeps exe
   attribution across threads and forks, and refuses a window under 600s. test:egress
   10/10.
-- `c7c305b`: provider_guard refuses openrouter/auto, x_ai/ and x.ai/. zofia-8b mirrored
+- `c7c305b`: provider_guard refuses openrouter/auto, x_ai/ and x.ai/. builder A mirrored
   it in the schema (`e96267c`, alongside its effort fix).
 - `ef0c6d3`: the seat launches with `sonnet` (decision 4); the mock runs as embedded
   bytes under `/bin/bash`; confirmation is bound to a digest; an exited leader is reaped
   even while a child holds the pty. cargo 72/72, e2e 12/12.
-- **Not verified in a real window yet:** all of `ef0c6d3`. zofia-8b's smoke needs a
+- **Not verified in a real window yet:** all of `ef0c6d3`. builder A's smoke needs a
   rebuild, plus its "CLI default" assertion changed to "sonnet" (told).
 
-## 2026-09-23 — session-assignment persistence, option B (zofia-26)
+## 2026-09-23 — session-assignment persistence, option B (builder B)
 
 **Done (`a9b6a29`):** corner assignments are saved to
 `$XDG_RUNTIME_DIR/zofia/assignments.json` and restored at launch, marked "restored",
@@ -333,7 +333,7 @@ with a "Clear all corners" button that also unregisters the sessions. cargo 76/7
 13/13 (mocked Tauri IPC). **Not yet verified in a real window:** that's next, in
 `test/appimage/live-gaps.mjs`.
 
-## 2026-09-23 — real-window tests (zofia-26)
+## 2026-09-23 — real-window tests (builder B)
 
 **Done (`e08caa7`), `npm run test:appimage-live` 12/12** in the packaged AppImage under
 Xvfb with `--network=none`: register_session end to end; stale and ended through the
@@ -344,7 +344,7 @@ all. The smoke baseline, rebuilt with `a9b6a29`, is 9/9 on both launch paths.
 would fail. **Still unproven by design:** OS-level key delivery. WebKitWebDriver can't
 send real keys here; input enters through xterm's own input event.
 
-## 2026-09-23 — item 6, zero-egress acceptance run (Zofia builder, for C&C thcmcp-31)
+## 2026-09-23 — item 6, zero-egress acceptance run (Zofia builder, for C&C)
 
 **Done: PASS.** 600s against the AppImage in the clean Fedora 44 image under Xvfb
 (`test/appimage/run-egress.sh`), with mock corner activity the whole time. The whole PID
@@ -364,7 +364,7 @@ passed 9/9 on the FUSE path and 9/9 on extract-and-run. Real-window live tests 1
 `docs/TRY-IT.md` notes the effort flag. The pane shows only the model.
 
 
-## 2026-09-24 — quality-check fixes Q1-Q3 (owner's go: "Let's take care of #1 now")
+## 2026-09-24 — quality-check fixes Q1-Q3 (owner's go)
 
 **Done, tested, pushed.** From `Review/QualityCheck_Deep_2026-09-23.md`'s three HIGHs:
 
@@ -381,7 +381,7 @@ passed 9/9 on the FUSE path and 9/9 on extract-and-run. Real-window live tests 1
   live gaps 16/16 (picker via the real Rust backend), smoke 9/9 x2.
 - Q4-Q8 and C1-C4 followed the same day, below.
 
-## 2026-09-24 — quality-check medium items Q4-Q8 and copy C1-C4 (owner: "Let's start with them")
+## 2026-09-24 — quality-check medium items Q4-Q8 and copy C1-C4 (owner's go)
 
 **Done, tested, pushed.**
 
@@ -400,7 +400,7 @@ passed 9/9 on the FUSE path and 9/9 on extract-and-run. Real-window live tests 1
   live gaps 16/16, smoke 9/9 x2.
 - Q9-Q12 and C5 followed the same day, below.
 
-## 2026-09-24 — quality-check low items Q9-Q12 and C5 (owner: "Shall we do the lower priority items next?")
+## 2026-09-24 — quality-check low items Q9-Q12 and C5 (owner's go)
 
 **Done, tested, pushed.**
 
@@ -418,10 +418,10 @@ passed 9/9 on the FUSE path and 9/9 on extract-and-run. Real-window live tests 1
 - **Left for the owner** (Q11's last part, TODO.md): `--restricted` ignores settings files,
   including the statusLine shim, so once item 8 opens the real center seat has no state card.
 
-## 2026-09-25 — Zofia 0.2.0 "ready for strangers" (C&C dispatch to zofia-3b)
+## 2026-09-25 — Zofia 0.2.0 "ready for strangers" (C&C dispatch to a builder session)
 
-The owner opened this session and told C&C it could dispatch Zofia work (FOCUS.md, 2026-09-25
-evening). The source was `zofia-research`'s merged results (briefs 03-06). Done, tested, pushed
+Owner decision, 2026-09-25: C&C may dispatch Zofia work to this session. The source was the
+merged results of a private research repo (briefs 03-06). Done, tested, pushed
 item by item:
 
 - **1a** (`c72985a`): `StopFailure`/`PermissionRequest`/`PostToolUseFailure` hooks; states

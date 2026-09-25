@@ -4,7 +4,7 @@
    box in device pixels via ResizeObserver — that's a JS measurement, not a CSS size.
 
    Palette values below continue Sophi-A's own reviewed palette (same owner, same
-   eventual license) rather than inventing a new one — see ~/Projects/sophi-a/src/styles.css.
+   eventual license) rather than inventing a new one — see Sophi-A's src/styles.css.
    "icon+label+color always together, never color alone" is Sophi-A's own rule and is
    kept here for the same reason: color-only state signaling fails a contrast/colorblind
    check on its own. */

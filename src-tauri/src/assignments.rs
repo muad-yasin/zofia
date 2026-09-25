@@ -145,9 +145,9 @@ mod tests {
     fn set_round_trips_privately_and_one_session_holds_one_corner() {
         with_dir("roundtrip", |root| {
             set(0, "aaaa-1", "repo A").unwrap();
-            set(2, "bbbb-2", "SMO").unwrap();
+            set(2, "bbbb-2", "webshop").unwrap();
             set(1, "aaaa-1", "repo A moved").unwrap(); // moves, doesn't duplicate
-            set(2, "cccc-3", "replaces SMO").unwrap();
+            set(2, "cccc-3", "replaces webshop").unwrap();
             let got = load().unwrap();
             let pairs: Vec<(u8, &str)> = got.iter().map(|a| (a.corner, a.session_id.as_str())).collect();
             assert_eq!(pairs, vec![(1, "aaaa-1"), (2, "cccc-3")]);

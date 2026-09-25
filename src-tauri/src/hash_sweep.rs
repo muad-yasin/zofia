@@ -1,6 +1,6 @@
 // PLAN.md §3, §1 disposition ledger row 6: "CLAUDE.md/.claude/.mcp.json hash sweep +
 // trust-level tags", adapted from Sophi-A's sensitivePathsSweep
-// (~/Projects/sophi-a/src/orchestrator/index.js) — same threat model, scoped down to
+// (Sophi-A's src/orchestrator/index.js) — same threat model, scoped down to
 // the center seat's own workspace only ("it can vouch for nothing inside the owner's
 // foreign corner terminals", PLAN.md §1 row 6's own reason).
 //

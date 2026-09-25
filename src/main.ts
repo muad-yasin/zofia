@@ -15,7 +15,7 @@ if (!isTauriRuntime()) {
   // assigned" placeholder path PLAN.md §4 requires (never a re-flow that hides an empty
   // slot).
   registry.registerToCorner(0, { sessionId: SAMPLE_SESSIONS[0].session_id, label: "sample-1 (this repo)", snapshot: SAMPLE_SESSIONS[0] });
-  registry.registerToCorner(1, { sessionId: SAMPLE_SESSIONS[1].session_id, label: "sample-2 (SMO)", snapshot: SAMPLE_SESSIONS[1] });
+  registry.registerToCorner(1, { sessionId: SAMPLE_SESSIONS[1].session_id, label: "sample-2 (webshop)", snapshot: SAMPLE_SESSIONS[1] });
   registry.registerToCorner(2, { sessionId: SAMPLE_SESSIONS[2].session_id, label: "sample-3 (idle)", snapshot: SAMPLE_SESSIONS[2] });
 }
 // Running for real: all four corners start empty. Registration is explicit, never

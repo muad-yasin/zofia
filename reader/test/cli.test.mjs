@@ -114,7 +114,7 @@ test("the Node reader refuses path-like session ids and uses a per-user fallback
     assert.equal(isValidSessionId(bad), false, bad);
     await assert.rejects(readSessionState(bad), /not a valid session_id/);
   }
-  assert.equal(isValidSessionId("d55b834d-d581-4891-9429-5afbe96e9f96"), true);
+  assert.equal(isValidSessionId("0b1e2c3d-4a5b-4c6d-8e7f-901a2b3c4d5e"), true);
   const saved = { z: process.env.ZOFIA_SESSIONS_DIR, x: process.env.XDG_RUNTIME_DIR };
   delete process.env.ZOFIA_SESSIONS_DIR;
   delete process.env.XDG_RUNTIME_DIR;

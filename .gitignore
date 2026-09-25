@@ -16,7 +16,7 @@ Excerpts_Candidates_*.md
 # Blind judging workspace (rubric, stripped plans, comparison) - never committed
 blind/
 
-# Working review/audit notes - scratch, dated, never canonical (matches SMO's own /Review/)
+# Working review/audit notes - scratch, dated, never canonical
 /Review/
 
 # Generated from config/providers.json by scripts/gen-providers.mjs (PLAN.md §5)
