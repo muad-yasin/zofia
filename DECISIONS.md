@@ -709,3 +709,16 @@ suite locale-proof and able to exit. Changed on top of the brief:
   over-restrict"), so "tools" would have contradicted him.
 - AppImage-only users still can't install the hooks. That isn't the small change it looks
   like (see `TODO.md`), so it is listed rather than built.
+
+## 2026-09-25 — the platform module (research brief 06)
+
+C&C dispatch, item 4. Brief 06's patch applied cleanly: `src-tauri/src/platform.rs` holds everything
+the crate asks of the OS (state dir, owner check, private modes, stat key, pid liveness,
+leader exit). The Linux arms are the old code moved verbatim, so Linux behaviour is unchanged
+(cargo 87/87 before and after, `--locked`). The macOS and Windows arms compile per the brief's
+cross-checks (`results/06-other-platforms/check-patched.txt`: 0 errors). This session didn't
+re-run them: the Windows check needs crates that aren't in the local cache. **Nothing is
+declared:** the bundle targets stay AppImage-only. The Windows parts are stubs with named TODOs
+(owner-SID check, Job Object kill), and the owner's platform answer is WSL2, not a native build.
+One new target-only dependency: `windows-sys` 0.61 under `cfg(windows)`, already in the lockfile
+through Tauri. It isn't compiled on Linux.

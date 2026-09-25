@@ -344,6 +344,7 @@ mod tests {
 
     /// Audit 2026-09-23 #2: the file-name check passed a versioned real CLI, a wrapper and
     /// `claude.exe`. Only the committed mock's exact bytes pass now, however it's reached.
+    #[cfg(unix)] // std::os::unix symlinks, or unix owner/mode checks
     #[test]
     fn only_the_committed_mock_passes_the_item_8_gate() {
         let dir = std::env::temp_dir().join(format!("zofia-gate-cmd-{}", std::process::id()));

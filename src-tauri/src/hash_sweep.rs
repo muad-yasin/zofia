@@ -37,17 +37,13 @@ const MAX_DEPTH: usize = 8;
 const MAX_ENTRIES: usize = 2_000;
 const MAX_HASHED_BYTES: u64 = 1 << 20; // larger files are fingerprinted by their stat key
 
-/// Everything the kernel changes when a file's content could have changed: a write moves
-/// mtime *and* ctime, and resetting mtime afterwards (utimensat, `touch -d`) moves ctime
-/// again. ctime can't be set back without root or a clock change, so an unchanged key
-/// means unchanged content in practice (audit follow-up 2026-09-23: re-hashing ~70 MiB
-/// every 5s with workdir = $HOME). dev+ino catch a file replaced by another.
-type StatKey = (u64, u64, u64, i64, i64, i64, i64);
-
-fn stat_key(m: &std::fs::Metadata) -> StatKey {
-    use std::os::unix::fs::MetadataExt;
-    (m.dev(), m.ino(), m.size(), m.mtime(), m.mtime_nsec(), m.ctime(), m.ctime_nsec())
-}
+// Everything the kernel changes when a file's content could have changed: a write moves
+// mtime *and* ctime, and resetting mtime afterwards (utimensat, `touch -d`) moves ctime
+// again. ctime can't be set back without root or a clock change, so an unchanged key
+// means unchanged content in practice (audit follow-up 2026-09-23: re-hashing ~70 MiB
+// every 5s with workdir = $HOME). dev+ino catch a file replaced by another.
+// Windows has no ctime, so its key is weaker; see platform::stat_key.
+use crate::platform::{stat_key, StatKey};
 
 /// Memory-only (hashes, never content), one per seat. Entries not seen in a sweep are
 /// dropped at its end, so the cache never outgrows the current tree.
@@ -253,6 +249,7 @@ mod tests {
         fs::remove_dir_all(&dir).ok();
     }
 
+    #[cfg(unix)] // std::os::unix symlinks, or unix owner/mode checks
     #[test]
     fn a_symlink_loop_inside_dot_claude_terminates_and_is_fingerprinted() {
         let dir = tmp_workdir("symloop");
@@ -266,6 +263,7 @@ mod tests {
         fs::remove_dir_all(&dir).ok();
     }
 
+    #[cfg(unix)] // std::os::unix symlinks, or unix owner/mode checks
     #[test]
     fn a_top_level_claude_md_symlink_tracks_its_target_content() {
         let dir = tmp_workdir("toplink");
@@ -322,6 +320,7 @@ mod tests {
     }
 
     /// Audit 2026-09-23 #6b: a symlinked `.claude` directory.
+    #[cfg(unix)] // std::os::unix symlinks, or unix owner/mode checks
     #[test]
     fn a_change_inside_a_symlinked_claude_dir_is_seen() {
         let dir = tmp_workdir("symlinked");

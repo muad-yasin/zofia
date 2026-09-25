@@ -36,6 +36,13 @@ const SAFE_ENV_KEYS: [&str; 11] = [
     "PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "TMP", "TEMP", "USER", "SHELL",
     "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS",
 ];
+/// Windows: without SystemRoot and friends a child can't load system DLLs or find its
+/// profile, and Claude Code looks for Git Bash itself (CLAUDE_CODE_GIT_BASH_PATH).
+#[cfg(windows)]
+const WINDOWS_ENV_KEYS: [&str; 12] = [
+    "SystemRoot", "SystemDrive", "windir", "ComSpec", "PATHEXT", "USERPROFILE", "USERNAME",
+    "APPDATA", "LOCALAPPDATA", "ProgramData", "ProgramFiles", "CLAUDE_CODE_GIT_BASH_PATH",
+];
 
 /// What the child is told about its terminal. The PTY's other end is always the webview's
 /// xterm.js, so this is fixed, never inherited: launched from a desktop entry or the
@@ -111,7 +118,11 @@ pub fn detect_foreign_settings(workdir: &Path) -> Option<ForeignSettingsInfo> {
 }
 
 fn safe_env() -> Vec<(String, String)> {
-    SAFE_ENV_KEYS.iter().filter_map(|&k| std::env::var(k).ok().map(|v| (k.to_string(), v))).collect()
+    #[cfg(windows)]
+    let keys = SAFE_ENV_KEYS.iter().chain(WINDOWS_ENV_KEYS.iter());
+    #[cfg(not(windows))]
+    let keys = SAFE_ENV_KEYS.iter();
+    keys.filter_map(|&k| std::env::var(k).ok().map(|v| (k.to_string(), v))).collect()
 }
 
 /// Spawns `command` under an owned PTY in `workdir`. Returns the seat handle plus a
@@ -181,8 +192,7 @@ impl PtySeat {
     /// keep the pty open after the leader is gone). Doesn't reap; stop() does.
     pub fn leader_exited(&self) -> bool {
         let Some(pid) = self.pid else { return false };
-        std::fs::read_to_string(format!("/proc/{pid}/stat"))
-            .map_or(true, |s| s.rfind(')').and_then(|i| s.get(i + 2..i + 3)) == Some("Z"))
+        crate::platform::leader_exited(pid)
     }
 
     /// Ownership boundary (PLAN.md §3): only `CENTER_SEAT_SESSION_ID` may ever write.
@@ -241,23 +251,41 @@ impl PtySeat {
             return Err(format!("ownership check failed: \"{session_id}\" is not the owned center seat"));
         }
         let mut child = self.child.lock().map_err(|e| e.to_string())?;
-        let pgid = self.pid.ok_or("the center seat has no pid to signal")? as i32;
-        if pgid <= 1 {
-            return Err(format!("refusing to signal process group {pgid}"));
-        }
-        // Listed before any signal: once the leader dies its orphans are reparented and the
-        // link to the seat is gone. Catches descendants that left the group with setsid.
-        let tree = descendants(pgid as u32);
-        signal_group(pgid, libc::SIGHUP);
-        let first = wait_for_exit(&mut **child, KILL_ESCALATION_MS);
-        // SIGKILL the group either way: members that ignored SIGHUP must not outlive the
-        // seat even when the leader itself exited politely. ESRCH (group gone) is fine.
-        signal_group(pgid, libc::SIGKILL);
-        kill_listed(&tree);
-        match first.or_else(|| wait_for_exit(&mut **child, 1_000)) {
-            Some(status) => Ok(Some(describe_exit(&status))),
-            None => Err("center seat process survived SIGKILL escalation".to_string()),
-        }
+        stop_owned(&mut **child, self.pid)
+    }
+}
+
+#[cfg(unix)]
+fn stop_owned(child: &mut (dyn portable_pty::Child + Send + Sync), pid: Option<u32>) -> Result<Option<String>, String> {
+    let pgid = pid.ok_or("the center seat has no pid to signal")? as i32;
+    if pgid <= 1 {
+        return Err(format!("refusing to signal process group {pgid}"));
+    }
+    // Listed before any signal: once the leader dies its orphans are reparented and the
+    // link to the seat is gone. Catches descendants that left the group with setsid.
+    // /proc only: on macOS this list is empty and the group signal alone applies.
+    let tree = descendants(pgid as u32);
+    signal_group(pgid, libc::SIGHUP);
+    let first = wait_for_exit(child, KILL_ESCALATION_MS);
+    // SIGKILL the group either way: members that ignored SIGHUP must not outlive the
+    // seat even when the leader itself exited politely. ESRCH (group gone) is fine.
+    signal_group(pgid, libc::SIGKILL);
+    kill_listed(&tree);
+    match first.or_else(|| wait_for_exit(child, 1_000)) {
+        Some(status) => Ok(Some(describe_exit(&status))),
+        None => Err("center seat process survived SIGKILL escalation".to_string()),
+    }
+}
+
+/// TODO(windows): no process group here. TerminateProcess ends the leader only; its own
+/// children (a real CLI's tool subprocesses) need a Job Object with
+/// JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE assigned at spawn, which portable-pty 0.9 doesn't do.
+#[cfg(windows)]
+fn stop_owned(child: &mut (dyn portable_pty::Child + Send + Sync), _pid: Option<u32>) -> Result<Option<String>, String> {
+    let _ = child.kill();
+    match wait_for_exit(child, KILL_ESCALATION_MS) {
+        Some(status) => Ok(Some(describe_exit(&status))),
+        None => Err("center seat process survived TerminateProcess".to_string()),
     }
 }
 
@@ -270,6 +298,7 @@ pub fn resweep_with(workdir: &Path, baseline: &Fingerprint, cache: &Mutex<SweepC
 /// (pid, start time) of every live descendant of `root`, from /proc. The start time
 /// guards the later kill against pid reuse. A descendant already orphaned before this
 /// runs (a double-forking daemon) isn't found: only a cgroup would hold those.
+#[cfg(unix)]
 fn descendants(root: u32) -> Vec<(u32, u64)> {
     let mut parent_of: Vec<(u32, u32, u64)> = Vec::new();
     if let Ok(dir) = std::fs::read_dir("/proc") {
@@ -295,6 +324,7 @@ fn descendants(root: u32) -> Vec<(u32, u64)> {
 
 /// Fields 4 (ppid) and 22 (starttime) of /proc/<pid>/stat, parsed after the comm field's
 /// closing paren (comm may itself contain spaces or parens).
+#[cfg(unix)]
 fn stat_ppid_start(pid: u32) -> Option<(u32, u64)> {
     let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
     let rest = &stat[stat.rfind(')')? + 2..];
@@ -302,6 +332,7 @@ fn stat_ppid_start(pid: u32) -> Option<(u32, u64)> {
     Some((f.get(1)?.parse().ok()?, f.get(19)?.parse().ok()?))
 }
 
+#[cfg(unix)]
 fn kill_listed(tree: &[(u32, u64)]) {
     for &(pid, start) in tree {
         if stat_ppid_start(pid).map(|(_, s)| s) == Some(start) {
@@ -313,6 +344,7 @@ fn kill_listed(tree: &[(u32, u64)]) {
     }
 }
 
+#[cfg(unix)]
 fn signal_group(pgid: i32, sig: libc::c_int) {
     // SAFETY: kill(2) with a negative pid signals that process group; no memory is touched.
     unsafe {

@@ -10,7 +10,6 @@
 use crate::session_reader::{is_valid_session_id, sessions_dir};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::PathBuf;
 
 const VERSION: u32 = 1;
@@ -36,11 +35,6 @@ pub fn assignments_path() -> PathBuf {
     sessions.parent().map(|p| p.to_path_buf()).unwrap_or(sessions).join("assignments.json")
 }
 
-fn uid() -> u32 {
-    // SAFETY: getuid(2) takes no arguments and cannot fail.
-    unsafe { libc::getuid() }
-}
-
 fn now() -> i64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
 }
@@ -59,9 +53,7 @@ pub fn load() -> Result<Vec<Assignment>, String> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(e) => return Err(format!("can't read {}: {e}", path.display())),
     };
-    if meta.uid() != uid() {
-        return Err(format!("{} is owned by uid {}, not you; not restoring from it", path.display(), meta.uid()));
-    }
+    crate::platform::check_owned(&meta, &path).map_err(|e| format!("{e}; not restoring from it"))?;
     let text = std::fs::read_to_string(&path).map_err(|e| format!("can't read {}: {e}", path.display()))?;
     let file: File = serde_json::from_str(&text).map_err(|e| format!("{} isn't a valid assignments file: {e}", path.display()))?;
     if file.version != VERSION {
@@ -82,18 +74,12 @@ fn save(corners: &[Assignment]) -> Result<(), String> {
     let dir = path.parent().ok_or("assignments path has no parent")?;
     std::fs::create_dir_all(dir).map_err(|e| format!("can't create {}: {e}", dir.display()))?;
     let dmeta = std::fs::metadata(dir).map_err(|e| e.to_string())?;
-    if dmeta.uid() != uid() {
-        return Err(format!("{} is owned by uid {}, not you; not writing there", dir.display(), dmeta.uid()));
-    }
-    let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700));
+    crate::platform::check_owned(&dmeta, dir).map_err(|e| format!("{e}; not writing there"))?;
+    crate::platform::make_dir_private(dir);
     let body = serde_json::to_string_pretty(&File { version: VERSION, corners: corners.to_vec() }).map_err(|e| e.to_string())?;
     // Atomic: a crash mid-write leaves the old file, never a torn one.
     let tmp = dir.join(format!(".assignments.json.{}", std::process::id()));
-    let mut f = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(0o600)
+    let mut f = crate::platform::private_file(std::fs::OpenOptions::new().write(true).create(true).truncate(true))
         .open(&tmp)
         .map_err(|e| format!("can't write {}: {e}", tmp.display()))?;
     f.write_all(body.as_bytes()).and_then(|_| f.sync_all()).map_err(|e| e.to_string())?;
@@ -169,8 +155,12 @@ mod tests {
 
             let path = root.join("assignments.json");
             assert_eq!(path, assignments_path());
-            assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
-            assert_eq!(std::fs::metadata(root).unwrap().permissions().mode() & 0o777, 0o700);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
+                assert_eq!(std::fs::metadata(root).unwrap().permissions().mode() & 0o777, 0o700);
+            }
             assert!(!std::fs::read_dir(root).unwrap().flatten().any(|e| e.file_name().to_string_lossy().starts_with(".assignments")), "temp file left behind");
         });
     }

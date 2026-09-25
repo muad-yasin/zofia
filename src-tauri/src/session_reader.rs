@@ -35,17 +35,8 @@ pub fn sessions_dir() -> PathBuf {
     if let Ok(dir) = std::env::var("ZOFIA_SESSIONS_DIR") {
         return PathBuf::from(dir);
     }
-    // Per-user fallback, never a shared /tmp/zofia (audit F10, 2026-09-23). Must match
-    // reader/shim/common.sh and reader/src/sessionState.mjs.
-    match std::env::var("XDG_RUNTIME_DIR") {
-        Ok(dir) if !dir.is_empty() => PathBuf::from(dir).join("zofia").join("sessions"),
-        _ => PathBuf::from(format!("/tmp/zofia-{}", current_uid())).join("sessions"),
-    }
-}
-
-fn current_uid() -> u32 {
-    // SAFETY: getuid(2) takes no arguments and cannot fail.
-    unsafe { libc::getuid() }
+    // Must match reader/shim/common.sh and reader/src/sessionState.mjs (platform.rs).
+    crate::platform::state_root().join("sessions")
 }
 
 /// A session_id becomes a file name: plain tokens only, so "../x" can't leave the
@@ -69,10 +60,7 @@ pub fn read_session_state(session_id: &str) -> Result<Option<RawSessionState>, S
     // A sessions dir someone else owns could hold planted state.
     let dir = sessions_dir();
     if let Ok(meta) = std::fs::metadata(&dir) {
-        use std::os::unix::fs::MetadataExt;
-        if meta.uid() != current_uid() {
-            return Err(format!("sessions directory {} is owned by uid {}, not you; refusing to read it", dir.display(), meta.uid()));
-        }
+        crate::platform::check_owned(&meta, &dir).map_err(|e| format!("sessions directory {e}; refusing to read it"))?;
     }
     let path = session_state_path(session_id);
     match std::fs::read_to_string(&path) {
@@ -201,7 +189,7 @@ fn type_check(v: &mut serde_json::Value) -> Vec<Mismatch> {
 }
 
 pub fn default_is_pid_alive(pid: u32) -> bool {
-    std::path::Path::new(&format!("/proc/{pid}")).exists()
+    crate::platform::is_pid_alive(pid)
 }
 
 // ---- raw shim schema (shim/statusline-wrapper.sh, shim/hook-writer.sh) ----
@@ -1051,6 +1039,7 @@ pub(crate) mod tests {
         assert!(is_valid_session_id("sess_1"));
     }
 
+    #[cfg(unix)] // std::os::unix symlinks, or unix owner/mode checks
     #[test]
     fn without_xdg_runtime_dir_the_fallback_is_per_user() {
         let _guard = ENV_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
@@ -1061,7 +1050,7 @@ pub(crate) mod tests {
         if let Some(v) = saved {
             std::env::set_var("XDG_RUNTIME_DIR", v);
         }
-        assert_eq!(dir, PathBuf::from(format!("/tmp/zofia-{}/sessions", current_uid())));
+        assert_eq!(dir, PathBuf::from(format!("/tmp/zofia-{}/sessions", crate::platform::current_uid())));
     }
 
     #[test]

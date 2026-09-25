@@ -11,6 +11,7 @@ mod assignments;
 mod center_seat;
 mod detect;
 mod hash_sweep;
+mod platform;
 mod provider_guard;
 mod pty_seat;
 mod session_reader;
