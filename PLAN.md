@@ -24,16 +24,16 @@ new-for-Zofia, dropped}.
 |---|---|---|---|
 | 1 | Tauri v2 shell + vanilla-TypeScript frontend | kept-unchanged | No framework migration — a real Svelte proposal was caught and rejected in debate for exactly this reason. |
 | 2 | `claudeCodeSubprocess.js` | kept-unchanged | The base spawn pattern; see row 19 for its PTY adaptation. |
-| 3 | `messagesApi.js` | kept-unchanged | Not used by any v1 seat, but not deleted. |
-| 4 | `relayChainSubprocess.js` + THCMCP/relay integration | kept-unchanged | Off by default; the mechanism §9's later optional layer would reuse. |
-| 5 | WS auth token + allowed-origins gate | kept-unchanged | Reused for the center seat's IPC. |
+| 3 | `messagesApi.js` | ~~kept-unchanged~~ **not carried over** (C&C edit 2026-09-25) | Not used by any v1 seat, but not deleted. **Correction:** Zofia's tree never had it; it stays in Sophi-A. |
+| 4 | `relayChainSubprocess.js` + THCMCP/relay integration | ~~kept-unchanged~~ **not carried over** (C&C edit 2026-09-25) | Off by default; the mechanism §9's later optional layer would reuse. **Correction:** not in Zofia's tree; §9's layer would be built new (research brief 05). |
+| 5 | WS auth token + allowed-origins gate | ~~kept-unchanged~~ **not carried over** (C&C edit 2026-09-25) | Reused for the center seat's IPC. **Correction:** the seat uses Tauri IPC and opens no WebSocket, so there is nothing for the gate to guard (`DECISIONS.md`, 2026-09-23). |
 | 6 | `CLAUDE.md`/`.claude`/`.mcp.json` hash sweep + trust-level tags | adapted | Scoped to the GUI-owned center seat's own workspace — it can vouch for nothing inside the owner's foreign corner terminals. |
-| 7 | MCP introspection server | kept-unchanged | Not needed until there's more than the center seat to introspect, but not removed. |
+| 7 | MCP introspection server | ~~kept-unchanged~~ **not carried over** (C&C edit 2026-09-25) | Not needed until there's more than the center seat to introspect, but not removed. **Correction:** not in Zofia's tree (research brief 05). |
 | 8 | Cost transparency (dry-run, CSV export) | adapted | To per-session display; the dry-run mechanism itself is kept for §9's later layer. |
-| 9 | Seat-owned families | kept-unchanged | Off by default; §9 answers whether it's reused later. |
-| 10 | AppImage CI packaging | kept-unchanged | Promoted to the primary v1 artifact (§7). |
-| 11 | Windows NSIS packaging | **dropped (v1)** | Owner's spec names Linux first. The inherited CI job is retained in-repo, not deleted — a future Windows build is a re-enable, not a rebuild (§10 decision list). |
-| 12 | Apache-2.0 license | kept-unchanged | Distinct row from distribution mode (13) — a real gap an earlier draft conflated, caught and split. |
+| 9 | Seat-owned families | ~~kept-unchanged~~ **not carried over** (C&C edit 2026-09-25) | Off by default; §9 answers whether it's reused later. **Correction:** not in Zofia's tree (research brief 05). |
+| 10 | AppImage CI packaging | ~~kept-unchanged~~ **adapted** (C&C edit 2026-09-25) | Promoted to the primary v1 artifact (§7). **Correction:** built locally (`npm run build:appimage`); there is no CI workflow in the tree. |
+| 11 | Windows NSIS packaging | **dropped (v1)** | Owner's spec names Linux first. The inherited CI job is retained in-repo, not deleted — a future Windows build is a re-enable, not a rebuild (§10 decision list). **Correction (C&C edit 2026-09-25):** no NSIS job was ever in Zofia's tree (it is in Sophi-A's `release.yml`), so a Windows build would be new work (research brief 06). The owner chose WSL2 over a native Windows build (2026-09-25). |
+| 12 | Apache-2.0 license | ~~kept-unchanged~~ **replaced** (C&C edit 2026-09-25) | Distinct row from distribution mode (13) — a real gap an earlier draft conflated, caught and split. **Correction:** MIT since `715ff2b` (owner's call, 2026-09-25). |
 | 13 | Source-only distribution mode | adapted | Source distribution continues; the binding spec adds a built AppImage artifact on top — still nothing resold. |
 | 14 | Hand-synced `cnc`/advisor provider list | **replaced** | By the generated single-source config (§5.1). |
 | 15 | 8-seat fixed layout | **replaced** | By the owner's binding 5-seat, 4-corners-plus-center layout. |
@@ -706,3 +706,10 @@ a session that saw neither run's identity:
   a plain tarball plus a `.desktop` file. No other item depends on it.
 - **A later-year roadmap trigger never fires:** nothing is sunk by design. Years 2-7 are gated, not
   committed, so an unfired trigger costs a review, not rework.
+
+## Appendix: C&C edits, 2026-09-25 (zofia-3b, on C&C's dispatch)
+
+§1 rows 3, 4, 5, 7, 9, 10, 11 and 12 said "kept-unchanged" (or, for 11, "retained in-repo") for
+Sophi-A code or CI that Zofia's tree never had, and row 12 still named Apache-2.0. Research briefs
+05 and 06 found it; each row now keeps the council's label struck through and says what is true.
+Not re-checked here: row 17 (export and replay), which may be in the same state.
