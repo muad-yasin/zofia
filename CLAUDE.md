@@ -2,7 +2,7 @@
 
 Zofia is the successor to Sophi-A: a Linux AppImage GUI that gives one command-and-control (C&C)
 overview of several Claude Code terminal sessions running on the owner's own Claude Code
-subscription. Public on GitHub since 2026-09-25 (owner's call), Apache-2.0.
+subscription. Public on GitHub since 2026-09-25 (owner's call), MIT licence.
 
 ## Start here
 

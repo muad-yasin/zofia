@@ -3,7 +3,7 @@
 A Linux AppImage GUI: one command-and-control overview of four Claude Code terminal
 sessions the owner opens himself, plus a fifth, GUI-owned center seat he can chat with
 directly. See `CLAUDE.md` for the owner's binding spec, and `PLAN.md`/`HANDOFF.md` for
-the build plan and order. Open source (Apache-2.0, `LICENSE`), public since 2026-09-25.
+the build plan and order. Open source (MIT, `LICENSE`), public since 2026-09-25.
 
 Status: building, per `HANDOFF.md`'s order. See `PROGRESS.md` for what's actually done.
 

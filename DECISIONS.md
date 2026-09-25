@@ -594,3 +594,11 @@ API keys, tokens and private-key headers (none), and for tracked `.env`, transcr
 `-cheap` copies or `Review/` files (none; they stay gitignored). One real Claude Code session id is
 quoted in the 2026-09-23 item-1 entry; it is not a credential. `LICENSE` (Apache-2.0, the same text
 and holder as Sophi-A's) was added, matching `package.json`.
+
+## 2026-09-25 — licence: Apache-2.0 → MIT (owner's call)
+
+The owner, to C&C, the same day the repo went public: *"I want to make sophia and zofia MIT license
+too"*, matching The High Council (MIT). `LICENSE` is now the MIT text with the same holder as THCMCP's
+(Sower Industries); `package.json`, `package-lock.json` and `src-tauri/Cargo.toml` follow. The copy
+published under Apache-2.0 between the two commits stays available under Apache-2.0 to anyone who took
+it; that cannot be withdrawn and doesn't need to be. Bundled fonts keep their own licences.

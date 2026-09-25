@@ -3,7 +3,7 @@ name = "zofia"
 version = "0.1.0"
 description = "Zofia - a Linux C&C overview of several Claude Code terminal sessions"
 authors = ["Sower Industries"]
-license = "Apache-2.0"
+license = "MIT"
 edition = "2021"
 
 [lib]
