@@ -49,6 +49,9 @@ for (const [name, fn] of [
   ['an x.ai/ prefixed model id', (c) => (c.providers[0].models[0].id = 'x.ai/some-model')],
   ['openrouter/auto', (c) => (c.providers[0].models[0].id = 'openrouter/auto')],
   ['openrouter/auto with a variant', (c) => (c.providers[0].models[0].id = 'OpenRouter/Auto:floor')],
+  ['a Kimi model id', (c) => (c.providers[0].models[0].id = 'moonshotai/Kimi-K3')],
+  ['an alias pointing at kimi', (c) => (c.aliases.fast = 'kimi-k3')],
+  ['a moonshot provider', (c) => c.providers.push({ ...c.providers[0], id: 'moonshot', models: [{ ...c.providers[0].models[0], id: 'other' }] })],
 ]) {
   test(`schema rejects ${name}`, () => {
     const r = run(mutate(fn));

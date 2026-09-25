@@ -654,3 +654,14 @@ moved the directory, the installer patched a file Claude Code never read, and th
 never fired. Both now default to `reader/src/claudeConfigDir.mjs`: the variable if set, else
 `~/.claude`. The install record and backups move with it (`<config dir>/zofia/`). Nothing changes
 for the owner, who doesn't set it. `--settings-path`/`--zofia-dir` still override both.
+
+## 2026-09-25 — the model guard refuses Kimi/Moonshot too
+
+C&C dispatch, from research brief 05: `provider_guard::is_forbidden` and the schema's
+`notForbidden` blocked xAI/Grok and `openrouter/auto`, but not Kimi. THC denies
+`kimi|moonshot` at lint time and at run time, and a later council feature in Zofia shouldn't
+rely on THC alone. Both checks now refuse any id containing "kimi" or "moonshot",
+case-insensitively. **Wider than the letter of CLAUDE.md**, which bars Kimi only from panels
+meant to be independent: the guard has one list, and the center seat runs `claude`, which has
+no Kimi models, so nothing that works today is refused. Narrow it if a non-panel Kimi use
+ever comes up.

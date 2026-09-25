@@ -91,9 +91,9 @@
   },
   "$defs": {
     "notForbidden": {
-      "$comment": "Standing rule: no xAI/Grok anywhere (CLAUDE.md), including x-ai/x_ai/x.ai segments and openrouter/auto (it can route to any lab). Kept in step with src-tauri/src/provider_guard.rs. Case-insensitive by construction; JS regex has no inline (?i).",
+      "$comment": "Standing rule: no xAI/Grok anywhere (CLAUDE.md), including x-ai/x_ai/x.ai segments and openrouter/auto (it can route to any lab); Kimi/Moonshot too (2026-09-25, brief 05, matching THC's deny list). Kept in step with src-tauri/src/provider_guard.rs. Case-insensitive by construction; JS regex has no inline (?i).",
       "type": "string",
-      "not": { "pattern": "[Gg][Rr][Oo][Kk]|(^|[/:])[Xx][-_.]?[Aa][Ii]($|[/:_.-])|(^|/)[Oo][Pp][Ee][Nn][Rr][Oo][Uu][Tt][Ee][Rr]/[Aa][Uu][Tt][Oo]($|:)" }
+      "not": { "pattern": "[Gg][Rr][Oo][Kk]|[Kk][Ii][Mm][Ii]|[Mm][Oo][Oo][Nn][Ss][Hh][Oo][Tt]|(^|[/:])[Xx][-_.]?[Aa][Ii]($|[/:_.-])|(^|/)[Oo][Pp][Ee][Nn][Rr][Oo][Uu][Tt][Ee][Rr]/[Aa][Uu][Tt][Oo]($|:)" }
     },
     "providerId": {
       "allOf": [

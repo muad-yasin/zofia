@@ -23,11 +23,11 @@ impl std::fmt::Display for ModelRejection {
             Self::Empty => write!(f, "empty model id"),
             Self::NonAscii(s) => write!(f, "model id {s:?} has non-ASCII characters"),
             Self::Forbidden { input, resolved } if input == resolved => {
-                write!(f, "model {input:?} is an xAI/Grok model, which Zofia never runs")
+                write!(f, "model {input:?} is an xAI/Grok, Kimi/Moonshot or router model, which Zofia never runs")
             }
             Self::Forbidden { input, resolved } => write!(
                 f,
-                "alias {input:?} resolves to {resolved:?}, an xAI/Grok model, which Zofia never runs"
+                "alias {input:?} resolves to {resolved:?}, an xAI/Grok, Kimi/Moonshot or router model, which Zofia never runs"
             ),
         }
     }
@@ -36,10 +36,12 @@ impl std::fmt::Display for ModelRejection {
 /// Same rule as the schema's `notForbidden`, written independently: any "grok"; an
 /// "xai", "x-ai", "x_ai" or "x.ai" segment at the start of the id or after a '/' or ':';
 /// and OpenRouter's auto-router, which may pick a Grok model itself. The owner's rule is
-/// "No grok, ever", routers included (2026-09-23).
+/// "No grok, ever", routers included (2026-09-23). Any "kimi" or "moonshot" too (2026-09-25,
+/// research brief 05): THC's own lint and runtime deny list includes them, since Kimi never
+/// sits on a panel that is supposed to be independent, and Zofia shouldn't rely on THC alone.
 pub fn is_forbidden(id: &str) -> bool {
     let l = id.to_ascii_lowercase();
-    if l.contains("grok") {
+    if ["grok", "kimi", "moonshot"].iter().any(|w| l.contains(w)) {
         return true;
     }
     if l.split(':').next().is_some_and(|base| base == "openrouter/auto" || base.ends_with("/openrouter/auto")) {
@@ -58,7 +60,7 @@ pub fn is_forbidden(id: &str) -> bool {
 
 /// Resolves `input` through `aliases` and rejects it if either the typed id or its
 /// target is forbidden. Ids not in the config are allowed through (the CLI accepts full
-/// model ids); only the xAI/Grok rule is enforced here.
+/// model ids); only the forbidden-model rule is enforced here.
 pub fn check_model_with(input: &str, aliases: &[(&str, &str)]) -> Result<String, ModelRejection> {
     let id = input.trim();
     if id.is_empty() {
@@ -129,6 +131,8 @@ mod tests {
             // Routers and other spellings: "No grok, ever", routers included.
             "openrouter/auto", "OpenRouter/Auto:floor", "x_ai/some-model", "x.ai/some-model",
             "openrouter/x_ai/m",
+            // Kimi / Moonshot (brief 05): THC denies both everywhere.
+            "kimi-k3", "moonshotai/Kimi-K2", "openrouter/moonshotai/some-model", "KIMI",
         ] {
             assert!(
                 matches!(check_model(id), Err(ModelRejection::Forbidden { .. })),
