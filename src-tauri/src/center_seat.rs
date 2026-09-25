@@ -182,7 +182,7 @@ pub fn launched_as(argv: &[String]) -> Result<Launched, String> {
 
 /// `--model <resolved id>`, always. No selection means config/providers.json's default
 /// (owner decision 4: `sonnet`), never the CLI's own default, which is whatever the
-/// owner's settings.json says (`opus[1m]` on his machine; roll-up 2026-09-23). Either way
+/// user's own settings.json says (roll-up 2026-09-23). Either way
 /// the id goes through the xAI/Grok guard.
 fn model_args(model: Option<&str>) -> Result<Vec<String>, String> {
     let chosen = model.map(str::trim).filter(|m| !m.is_empty()).unwrap_or(crate::provider_guard::default_model());
