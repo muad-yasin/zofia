@@ -64,7 +64,7 @@ export function computeInstallPatch(settings, { shimDir }) {
     changes.push(
       originalCommand
         ? `statusLine: wrap existing command ("${originalCommand}") so it still runs and its output still shows, unchanged`
-        : `statusLine: install Zofia's capture-only wrapper (no statusLine existed before; Zofia prints nothing extra, so Claude Code's default footer is unaffected)`
+        : `statusLine: install Zofia's capture-only wrapper (no statusLine existed before; Zofia prints no status text, but with any statusLine configured Claude Code hides most footer key hints, e.g. "esc to interrupt")`
     );
   } else {
     changes.push("statusLine: already Zofia's wrapper — left as-is");

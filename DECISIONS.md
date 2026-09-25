@@ -685,3 +685,27 @@ above. Adapted rather than taken verbatim:
   (`THCMCP: blocked: permission`) and fires again when a seen session starts a new wait.
 - A new axe test fires one session of each kind, because the sample data has no waiting
   session and the two existing contrast tests never saw these colours.
+
+## 2026-09-25 — the open-source pack (research brief 03)
+
+C&C dispatch, item 3. Brief 03's patch applied cleanly: a README written for strangers,
+with a Privacy section listing every file Zofia installs, reads and writes; `SECURITY.md`
+(private vulnerability reporting is on, owner's call); `CONTRIBUTING.md`;
+`CODE_OF_CONDUCT.md` (the brief's own wording, not a copied covenant); issue templates;
+`CHANGELOG.md`. It also fixes the installer's false "default footer is unaffected" line
+(Claude Code hides most footer key hints whenever any statusLine is set) and makes the e2e
+suite locale-proof and able to exit. Changed on top of the brief:
+
+- The README says ten hooks and names `CLAUDE_CONFIG_DIR`, and mentions the needs-you queue.
+  The state-file row adds the `StopFailure` error category.
+- The README carries the how-it-works GIF (`docs/media/zofia-how-it-works-v2.gif`, from C&C)
+  and a placeholder comment for a second GIF C&C will supply.
+- **Windows: use WSL2** (owner's choice, 2026-09-25, relayed by C&C). A native build is out
+  for now because WebView2 sends required diagnostic data whatever the app does (brief 06,
+  citing Microsoft's docs), which breaks zero egress. The README says it is untested.
+- CONTRIBUTING's model rule reads "no xAI/Grok or Kimi/Moonshot model ids, and no router
+  that may pick one", matching the guard. The brief had "no xAI/Grok models **or tools**".
+  The owner has said agent CLIs that *can* route to Grok may be seats ("Keep them, no need to
+  over-restrict"), so "tools" would have contradicted him.
+- AppImage-only users still can't install the hooks. That isn't the small change it looks
+  like (see `TODO.md`), so it is listed rather than built.

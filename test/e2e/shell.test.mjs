@@ -21,13 +21,18 @@ const BASE_URL = `http://localhost:${PREVIEW_PORT}`;
 
 let previewProc;
 let browser;
+// The time assertions expect a 24-hour clock. Pin the page locale so the suite passes on a
+// machine whose system locale is en-US (12-hour, "03:49 PM") too, not just the build host's.
+const PAGE_LOCALE = "en-GB";
 
 before(async () => {
   // vite preview serves dist/ as-is; build first so the suite never checks a stale build
   // (audit F7, 2026-09-23).
   const build = spawnSync("npm", ["run", "build"], { cwd: ROOT, encoding: "utf8" });
   if (build.status !== 0) throw new Error(`npm run build failed:\n${build.stdout}${build.stderr}`);
-  previewProc = spawn("npx", ["vite", "preview", "--port", String(PREVIEW_PORT), "--strictPort"], {
+  // Run vite's own entry point under this node, not through `npx`: killing an npx wrapper
+  // leaves the vite server running, which kept the port busy and hung the suite at exit.
+  previewProc = spawn(process.execPath, [path.join(ROOT, "node_modules", "vite", "bin", "vite.js"), "preview", "--port", String(PREVIEW_PORT), "--strictPort"], {
     cwd: ROOT,
     stdio: "pipe",
   });
@@ -52,7 +57,7 @@ after(async () => {
 });
 
 async function newPageAt(width, height) {
-  const page = await browser.newPage({ viewport: { width, height } });
+  const page = await browser.newPage({ viewport: { width, height }, locale: PAGE_LOCALE });
   await page.goto(BASE_URL);
   await page.waitForSelector("#shell");
   return page;
@@ -297,7 +302,7 @@ const TAURI_MOCK = (responses = {}) => {
 };
 
 async function newLivePageAt(width, height, responses = {}) {
-  const page = await browser.newPage({ viewport: { width, height } });
+  const page = await browser.newPage({ viewport: { width, height }, locale: PAGE_LOCALE });
   await page.addInitScript(TAURI_MOCK, responses);
   await page.goto(BASE_URL);
   await page.waitForSelector("#shell");

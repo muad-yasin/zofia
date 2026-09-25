@@ -34,5 +34,6 @@ fi
 if [ -n "${ZOFIA_ORIGINAL_STATUSLINE_CMD:-}" ]; then
   printf '%s' "$input" | eval "$ZOFIA_ORIGINAL_STATUSLINE_CMD"
 fi
-# No prior statusLine configured: print nothing, so Claude Code falls back to its own
-# default footer rather than Zofia inventing a visible line the owner never asked for.
+# No prior statusLine configured: print nothing, so Zofia never invents a visible line the
+# owner never asked for. Claude Code's docs say any configured statusLine still hides most
+# footer key hints ("esc to interrupt", "? for shortcuts"), so install.mjs says so in its diff.

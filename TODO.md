@@ -44,6 +44,22 @@ the next container run.
 4. **Confirm whether Windows packaging is ever reopened** — not blocking anything
    currently building.
 
+## Open-source follow-ups (research brief 03, 2026-09-25)
+
+- **AppImage-only users can't install the observation bridge.** The hooks run
+  `bash <checkout>/reader/shim/...`, and the AppImage ships neither the shim nor the
+  installer, so without a checkout nothing feeds the corners. Moving or deleting the checkout
+  also breaks a hook on every tool call. Fix: install the shim to a stable
+  `~/.local/share/zofia/shim/`. **Not a small change.** Hooks are matched by their exact
+  command, so an existing install would get a second set of hooks unless the installer also
+  migrates the old path's entries and the install record. The AppImage would have to carry
+  the shim and an installer too.
+- **Before the first binary release** (brief 03 items 6, 9 and 10): a signed `SHA256SUMS`
+  (brief recommends minisign, key kept offline by the owner), CI, third-party licence notices
+  for the AppImage's bundled libraries, the glibc floor, a real icon. The owner decides on
+  the owner-private names in the repo (`de.sower.zofia`, session names, project names in
+  sample data).
+
 ## Real gaps carried from `DECISIONS.md`, not yet resolved
 
 - **What actually brings `rate_limits.five_hour` back once absent is still unknown**

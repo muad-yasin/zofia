@@ -1,5 +1,9 @@
 # Try it — running the Zofia AppImage yourself
 
+*Written for the maintainer's own machine: "your clearance file", "item 8" and the
+install dates below are his. If you are new here, start with the README's "Build from
+source" and "Privacy" sections; there is no published AppImage yet.*
+
 What this build is: HANDOFF items 1-7 and 9 (item 5 minus signing; item 8 waits on your
 clearance file). The four corners watch Claude Code sessions you opened yourself. The center seat is a real terminal, but until item 8 (your own read of
 Anthropic's terms) it only runs the test mock, never the real `claude`.
