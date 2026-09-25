@@ -633,3 +633,15 @@ not observed live.
   `~/.claude/settings.json` is his call, as before.
 - **Still unverified live:** when `idle_prompt` fires (the hooks page doesn't say), and that
   `Stop` never follows `StopFailure` (the docs' lifecycle reading, not an observation).
+
+## 2026-09-25 — the installer knows its wrapper by shape, not by a "zofia" path
+
+Research brief 03 found `isZofiaWrapper()` only matched a statusLine command whose path held
+"zofia". A checkout under any other name (a fork, a worktree, `/tmp/x`) didn't recognise its
+own wrapper on a re-install and wrapped it a second time; `install.test.mjs`'s backup test
+failed there. Reproduced in a worktree at `/tmp/chk-3b`: 6/7 before, 7/7 after. The check is
+now the exact shape `statuslineWrapperCommand` writes (optional
+`ZOFIA_ORIGINAL_STATUSLINE_CMD='…'` prefix, then `bash <dir>/statusline-wrapper.sh`), so a
+wrapper from a different checkout path is recognised too and left as-is.
+**Not changed:** a re-install from a second checkout path still adds that path's hook commands
+next to the first path's, as before; uninstall removes each by its recorded command.

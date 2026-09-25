@@ -21,11 +21,13 @@ export function statuslineWrapperCommand(shimDir, originalCommand) {
   return `ZOFIA_ORIGINAL_STATUSLINE_CMD=${shellQuote(originalCommand)} ${wrapper}`;
 }
 
-// Case-insensitive: the owner's checkout is ~/Projects/Zofia, and a case-sensitive
-// "zofia" match missed it, so a re-install wrapped Zofia's own wrapper a second time
-// (found 2026-09-23 while fixing audit F8).
-function isZofiaWrapper(command) {
-  return command.toLowerCase().includes("zofia") && /\/statusline-wrapper\.sh$/.test(command);
+// Recognised by the exact shape statuslineWrapperCommand writes, not by the path. The
+// first check looked for "zofia" in the path (then case-insensitively, 2026-09-23), so a
+// re-install from a checkout with any other name wrapped Zofia's own wrapper a second
+// time (research brief 03, 2026-09-25).
+const WRAPPER_RE = /^(?:ZOFIA_ORIGINAL_STATUSLINE_CMD='(?:[^']|'\\'')*' )?bash .+\/statusline-wrapper\.sh$/;
+export function isZofiaWrapper(command) {
+  return WRAPPER_RE.test(command);
 }
 
 function shellQuote(str) {

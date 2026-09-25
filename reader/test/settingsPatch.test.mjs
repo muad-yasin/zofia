@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeInstallPatch, computeUninstallPatch, mergeInstallRecords, hookWriterCommand, statuslineWrapperCommand, HOOK_EVENTS } from "../src/settingsPatch.mjs";
+import { computeInstallPatch, computeUninstallPatch, mergeInstallRecords, hookWriterCommand, statuslineWrapperCommand, isZofiaWrapper, HOOK_EVENTS } from "../src/settingsPatch.mjs";
 
 const SHIM_DIR = "/opt/zofia/shim";
 
@@ -51,6 +51,20 @@ test("re-running install against an already-installed settings.json is idempoten
   assert.deepEqual(second.nextSettings, first.nextSettings);
   assert.equal(second.record.injected_hooks.length, 0);
   for (const event of HOOK_EVENTS) assert.equal(second.nextSettings.hooks[event].length, 1);
+});
+
+// Research brief 03 (2026-09-25): the wrapper was recognised only if its path held "zofia",
+// so a checkout under any other name wrapped Zofia's own wrapper a second time.
+test("a re-install from a checkout whose path has no 'zofia' in it doesn't wrap the wrapper again", () => {
+  const shimDir = "/opt/checkout/reader/shim";
+  const original = { statusLine: { type: "command", command: "bash ~/.claude/statusline-command.sh it's" } };
+  const first = computeInstallPatch(original, { shimDir });
+  const second = computeInstallPatch(first.nextSettings, { shimDir });
+  assert.deepEqual(second.nextSettings, first.nextSettings);
+  assert.equal(second.record.original_statusline, "already-ours-skip");
+  assert.ok(isZofiaWrapper(first.nextSettings.statusLine.command));
+  assert.ok(!isZofiaWrapper("bash ~/.claude/statusline-command.sh"));
+  assert.ok(!isZofiaWrapper("FOO=1 bash /x/statusline-wrapper.sh"), "only the exact shape the installer writes");
 });
 
 test("install + uninstall round-trips back to the exact original settings object", () => {
