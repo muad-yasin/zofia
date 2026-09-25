@@ -1,6 +1,6 @@
 [package]
 name = "zofia"
-version = "0.1.0"
+version = "0.2.0"
 description = "Zofia - a Linux C&C overview of several Claude Code terminal sessions"
 authors = ["Sower Industries"]
 license = "MIT"

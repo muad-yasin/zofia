@@ -10,7 +10,7 @@ Anthropic's terms) it only runs the test mock, never the real `claude`.
 
 ## 1. Get the AppImage
 
-Built copy: `src-tauri/target/release/bundle/appimage/Zofia_0.1.0_amd64.AppImage`
+Built copy: `src-tauri/target/release/bundle/appimage/Zofia_0.2.0_amd64.AppImage`
 
 To rebuild (about 5 minutes):
 
@@ -25,7 +25,7 @@ bigger (~107 MB), not broken. Only Fedora 44 x86_64 is tested (`packaging/linux-
 From the repo root, in a terminal:
 
     ZOFIA_CENTER_COMMAND="$PWD/test/fixtures/mock-claude.sh" \
-      src-tauri/target/release/bundle/appimage/Zofia_0.1.0_amd64.AppImage
+      src-tauri/target/release/bundle/appimage/Zofia_0.2.0_amd64.AppImage
 
 `ZOFIA_CENTER_COMMAND` must be the absolute path of the committed mock. Anything else,
 including `claude`, is refused until item 8. Without it the corners still work, and the

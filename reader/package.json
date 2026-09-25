@@ -1,6 +1,6 @@
 {
   "name": "@zofia/reader",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Zofia week-1 reader spike: session-state observation bridge (PLAN.md §2) — statusline/hook shim + zofia-reader CLI.",
   "type": "module",

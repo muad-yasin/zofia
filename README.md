@@ -11,7 +11,7 @@ turn) are listed in the top bar, oldest wait first, one click away.
 
 <!-- GIF 2 goes here (supplied separately): docs/media/<name>.gif -->
 
-**Status: early and unreleased (0.1.0).** There is no downloadable build yet; you build
+**Status: early and unreleased (0.2.0).** There is no downloadable build yet; you build
 it from source. It is tested on Fedora 44 x86_64 only. The center seat (a sixth pane for
 chatting with a Claude Code process Zofia starts itself) currently runs only a built-in
 test mock, never the real `claude`. Nothing here claims Zofia makes you or your agents

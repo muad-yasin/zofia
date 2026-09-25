@@ -417,3 +417,24 @@ passed 9/9 on the FUSE path and 9/9 on extract-and-run. Real-window live tests 1
   22/22 (exit message, off-notice at mount, a 3000-byte echo over the channel), smoke 9/9 x2.
 - **Left for the owner** (Q11's last part, TODO.md): `--restricted` ignores settings files,
   including the statusLine shim, so once item 8 opens the real center seat has no state card.
+
+## 2026-09-25 — Zofia 0.2.0 "ready for strangers" (C&C dispatch to zofia-3b)
+
+The owner opened this session and told C&C it could dispatch Zofia work (FOCUS.md, 2026-09-25
+evening). The source was `zofia-research`'s merged results (briefs 03-06). Done, tested, pushed
+item by item:
+
+- **1a** (`c72985a`): `StopFailure`/`PermissionRequest`/`PostToolUseFailure` hooks; states
+  blocked / your turn / failed in both readers and the card; `turn_ended_at` keeps a finished
+  turn's "worked for". Parity corpus 14 → 20 cases.
+- **1b** (`511d70f`): the installer recognises its wrapper by shape, not a "zofia" path.
+- **1c** (`917dd03`): the installer honours `CLAUDE_CONFIG_DIR`.
+- **1d** (`a981341`): the guard and schema refuse Kimi/Moonshot.
+- **1e** (`5361af1`): PLAN.md §1 rows 3, 4, 5, 7, 9, 10, 11, 12 corrected as marked C&C edits.
+- **2** (`ff41d9b`): the needs-you queue (brief 04 P1, adapted to the new states, with a seen rule).
+- **3** (`a74a13d`): the open-source pack (brief 03), with the GIF, WSL2 note and ten-hook privacy table.
+- **4** (`0229e46`): `platform.rs` (brief 06); Linux unchanged, Windows/macOS undeclared.
+- **0.2.0**: version bump, CHANGELOG. AppImage rebuilt as `Zofia_0.2.0_amd64.AppImage`.
+- **Not done here:** the owner's real `settings.json` still has the seven-hook install; the three
+  new hooks need his re-run of the installer. AppImage-only shim install is in `TODO.md`.
+  Windows/macOS were not compiled in this session (the crate cache lacks their crates).

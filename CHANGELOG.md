@@ -6,12 +6,41 @@ change behaviour.
 
 ## Unreleased
 
+## 0.2.0 (2026-09-25, not released as a build)
+
+"Ready for strangers": the repo can be read, built and installed by someone who isn't the
+maintainer. There is still no downloadable build.
+
 ### Added
+- **A "needs you" queue** in the top bar. It lists sessions that wait on you: blocked first,
+  then failed, then "your turn", each with the longest wait first. The window title shows
+  the count, the corner gets a frame, an off-screen tab gets a mark, and a click or Alt+N
+  jumps to the session. Focusing a failed or your-turn corner takes it off the queue. A
+  blocked one stays until it moves on.
+- **Honest waiting states.** "blocked: permission" / "blocked: question", "your turn", and
+  "failed: <error type>" (such as `rate_limit`), each with its own glyph and colour.
 - `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, issue templates, this changelog.
-- README rewritten for people who are not the maintainer, with a Privacy section listing
-  every file Zofia installs, reads and writes.
+- README rewritten for people who are not the maintainer. A Privacy section lists every
+  file Zofia installs, reads and writes. New notes: Windows users run it under WSL2
+  (untested), and macOS isn't supported yet.
+- `src-tauri/src/platform.rs`: every OS-specific call in one module. Linux behaviour is
+  unchanged. Windows and macOS compile but are not supported.
+
+### Changed
+- The installer registers three more hooks (`StopFailure`, `PermissionRequest`,
+  `PostToolUseFailure`), ten in all. **Re-run the installer** to get them; it adds only
+  what is missing.
+- The model guard refuses Kimi/Moonshot ids too, as it already refused xAI/Grok and
+  `openrouter/auto`.
 
 ### Fixed
+- After an API error such as a rate limit, a corner read "processing" and kept counting
+  for as long as the session lived. It now reads "failed: rate_limit".
+- A finished turn read "working for …" again once Claude Code's idle-prompt notification
+  arrived. It now keeps "worked for …".
+- Re-installing from a checkout whose path doesn't contain "zofia" wrapped Zofia's own
+  status line a second time.
+- The installer ignored `CLAUDE_CONFIG_DIR` and always patched `~/.claude/settings.json`.
 - The shim installer no longer says Claude Code's footer is unaffected when no status line
   existed before. Claude Code hides most footer key hints whenever any status line is set.
 - The frontend tests pin a 24-hour locale, so they pass on en-US machines, and stop the

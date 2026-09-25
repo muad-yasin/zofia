@@ -14,12 +14,12 @@ describing yesterday is the failure mode this exists to fix. Long narrative belo
 
 ## PRIORITY NOW
 
-**2026-09-23 afternoon.** HANDOFF items 1-7 and 9 are done. Item 6's acceptance run
-PASSED (`docs/EGRESS-AUDIT-2026-09-23.md`). Owner decisions 1 (his ToS read) and 2
-(effort Medium) are recorded in `DECISIONS.md`. **Item 8 waits on one owner step:**
-creating the clearance file (`docs/ITEM-8-CHECKLIST.md`). Item 5's signature waits on
-his key. After any Rust change, rebuild the AppImage (`npm run build:appimage`) before
-the next container run.
+**2026-09-25 evening.** 0.2.0 "ready for strangers" is done (`PROGRESS.md`): new states, the
+needs-you queue, the open-source pack, `platform.rs`. **Owner steps that unlock the most:**
+(a) re-run `node reader/install/install.mjs` (dry-run first) so his sessions send the three
+new hooks. Until then an API error still reads "processing" on his machine. (b) Create the
+item 8 clearance file (below). Item 5's signature still waits on his key. After any Rust
+change, rebuild the AppImage (`npm run build:appimage`) before the next container run.
 
 ---
 
