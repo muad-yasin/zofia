@@ -665,3 +665,23 @@ case-insensitively. **Wider than the letter of CLAUDE.md**, which bars Kimi only
 meant to be independent: the guard has one list, and the center seat runs `claude`, which has
 no Kimi models, so nothing that works today is refused. Narrow it if a non-panel Kimi use
 ever comes up.
+
+## 2026-09-25 — the "needs you" queue (research brief 04, P1), on the new states
+
+C&C dispatch, item 2. The brief's patch (`zofia-research` `results/04-command-deck-ux/patch.diff`)
+applied except one `cardView.ts` hunk, since it predates the blocked / your turn / failed split
+above. Adapted rather than taken verbatim:
+
+- The queue lists **blocked first, then failed, then your turn**, each with the longest wait
+  first. An unknown start sorts last in its group. Each item carries its state's glyph and
+  colour, and its tooltip says what it waits on (`blocked: permission since …`).
+- **Seen rule (in memory only):** focusing a corner, by click, Tab, a queue item or Alt+N,
+  takes a *failed* or *your turn* wait out of the queue and the frame until a new wait begins.
+  A *blocked* wait stays until its state changes, since the session can't go on without an
+  answer. The headline keeps saying what happened either way. This is the brief's "fades once
+  seen", applied to the queue rather than to the headline.
+- The window title count, the corner frame, the tab-strip mark and the one screen-reader
+  announcement per new wait are as the brief built them. An announcement now names the state
+  (`THCMCP: blocked: permission`) and fires again when a seen session starts a new wait.
+- A new axe test fires one session of each kind, because the sample data has no waiting
+  session and the two existing contrast tests never saw these colours.

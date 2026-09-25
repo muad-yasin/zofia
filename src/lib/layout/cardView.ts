@@ -12,7 +12,7 @@ import type { Field, RegisteredSession, SessionSnapshot } from "./types.js";
 // API error, e.g. a rate limit) replace the one old "waiting".
 export type ActivityKind = "working" | "blocked" | "yourTurn" | "error" | "idle" | "ended" | "stale" | "unknown";
 
-const GLYPH: Record<ActivityKind, string> = {
+export const GLYPH: Record<ActivityKind, string> = {
   working: "▶",
   blocked: "◆",
   yourTurn: "●",
@@ -36,12 +36,55 @@ export function activityKind(value: string | null): ActivityKind {
   return "unknown";
 }
 
+/** 42 -> "42s", 250 -> "4m", 7260 -> "2h 1m". */
+export function fmtSpan(s: number): string {
+  return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+}
+
 /** "40s ago" / "in 3h 12m", relative to now. */
 export function fmtRelative(epochS: number, nowS = Math.floor(Date.now() / 1000)): string {
   const d = epochS - nowS;
-  const s = Math.abs(d);
-  const span = s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+  const span = fmtSpan(Math.abs(d));
   return d > 0 ? `in ${span}` : `${span} ago`;
+}
+
+/** The kinds that wait on the owner, in queue order: a blocked session can't go on at all,
+ * a failed turn needs a retry, and "your turn" only means the turn is over. */
+export const ATTENTION_KINDS = ["blocked", "error", "yourTurn"] as const;
+export type AttentionKind = (typeof ATTENTION_KINDS)[number];
+
+export function attentionKind(value: string | null): AttentionKind | null {
+  const kind = activityKind(value);
+  return (ATTENTION_KINDS as readonly string[]).includes(kind) ? (kind as AttentionKind) : null;
+}
+
+/** A session waiting on the owner, and since when (the "needs you" queue). */
+export interface WaitingSession {
+  sessionId: string;
+  label: string;
+  kind: AttentionKind;
+  /** The activity words the headline shows, e.g. "blocked: permission". */
+  what: string;
+  /** When the wait began: the observed_at of the hook event that started it. */
+  since: number | null;
+}
+
+/** Sessions waiting on the owner: blocked first, then failed, then "your turn", each longest
+ * wait first; an unknown start sorts last in its group rather than being guessed. `isSeen`
+ * drops a failed or your-turn wait the owner has already looked at. A blocked one stays
+ * until its state changes, because the session can't go on without an answer. */
+export function waitingSessions(sessions: RegisteredSession[], isSeen: (w: WaitingSession) => boolean = () => false): WaitingSession[] {
+  const out: WaitingSession[] = [];
+  for (const s of sessions) {
+    const what = s.snapshot?.activityState.value ?? null;
+    const kind = attentionKind(what);
+    if (!kind) continue;
+    const w = { sessionId: s.sessionId, label: s.label, kind, what: what!, since: s.snapshot!.activityState.observed_at };
+    if (kind !== "blocked" && isSeen(w)) continue;
+    out.push(w);
+  }
+  const rank = (k: AttentionKind) => ATTENTION_KINDS.indexOf(k);
+  return out.sort((a, b) => rank(a.kind) - rank(b.kind) || (a.since ?? Infinity) - (b.since ?? Infinity));
 }
 
 /** Local date and time, for a relative time's tooltip (egress audit #4: the date was missing). */

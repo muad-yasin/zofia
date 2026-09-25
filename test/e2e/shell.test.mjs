@@ -557,3 +557,130 @@ test("the top bar shows the freshest session's five-hour usage, its reset countd
     await page.close();
   }
 });
+
+// Research brief 04, proposal 1: the "needs you" queue. Waiting sessions are listed in the
+// top bar (blocked, then failed, then your turn; each longest wait first), counted in the window title, framed in their corner, marked
+// in the tab strip when off screen, and one click or Alt+N away.
+function waitingState(value, observed_at) {
+  return { activityState: { value, availability: "approximable", source: "e2e", observed_at } };
+}
+
+test("needs-you queue: waiting sessions listed longest wait first, counted in the title, one click away", async () => {
+  const page = await newLivePageAt(1280, 800);
+  try {
+    assert.equal(await page.textContent("#needs-you"), "nobody waiting");
+    assert.equal(await page.title(), "Zofia");
+    for (const [corner, id] of [[1, "sess-a"], [2, "sess-b"], [3, "sess-c"]]) {
+      await page.fill(`[aria-label="Assign a session to corner ${corner}"]`, id);
+      await page.press(`[aria-label="Assign a session to corner ${corner}"]`, "Enter");
+    }
+    const now = Math.floor(Date.now() / 1000);
+    await fireSnapshot(page, liveSnapshot("sess-a", waitingState("blocked: permission", now - 30)));
+    await fireSnapshot(page, liveSnapshot("sess-b", waitingState("blocked: permission", now - 240)));
+    await fireSnapshot(page, liveSnapshot("sess-c", waitingState("running tool: Bash · 5s", now - 5)));
+    await page.waitForFunction(() => document.querySelectorAll("#needs-you .needs-you-item").length === 2);
+
+    const items = await page.$$eval("#needs-you .needs-you-item", (els) => els.map((el) => el.textContent));
+    assert.equal(items.length, 2, "only waiting sessions are queued, not working ones");
+    assert.match(items[0], /^◆ sess-b · 4m$/, "the longest wait comes first");
+    assert.match(items[1], /^◆ sess-a · \d+s$/);
+    assert.equal(await page.title(), "(2) Zofia");
+    const attention = await page.$$eval(".corner", (els) => els.map((el) => el.dataset.attention ?? ""));
+    assert.deepEqual(attention, ["blocked", "blocked", "", ""], "waiting corners are framed; the working one is not");
+
+    await page.click('#needs-you .needs-you-item[data-session-id="sess-b"]');
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")), "Session: sess-b");
+
+    await fireSnapshot(page, liveSnapshot("sess-b", waitingState("processing · 2s", now)));
+    await page.waitForFunction(() => document.title === "(1) Zofia");
+    assert.equal(await page.$eval('[data-corner="1"]', (el) => el.dataset.attention ?? ""), "", "the frame clears when the wait ends");
+    await fireSnapshot(page, liveSnapshot("sess-a", waitingState("idle", now)));
+    await page.waitForFunction(() => document.title === "Zofia");
+    assert.equal(await page.textContent("#needs-you"), "nobody waiting");
+  } finally {
+    await page.close();
+  }
+});
+
+test("needs-you queue: a wait behind a tab is marked in the strip, and Alt+N brings it forward", async () => {
+  const page = await newLivePageAt(800, 600);
+  try {
+    await page.fill('[aria-label="Assign a session to corner 1"]', "sess-front");
+    await page.press('[aria-label="Assign a session to corner 1"]', "Enter");
+    await page.click('#tab-strip [role="tab"]:nth-child(3)');
+    await page.fill('[aria-label="Assign a session to corner 3"]', "sess-hidden");
+    await page.press('[aria-label="Assign a session to corner 3"]', "Enter");
+    await page.click('#tab-strip [role="tab"]:nth-child(1)');
+    await page.waitForSelector('.corner[data-key="s:sess-front"]');
+
+    const now = Math.floor(Date.now() / 1000);
+    await fireSnapshot(page, liveSnapshot("sess-hidden", waitingState("blocked: permission", now - 60)));
+    await page.waitForSelector('#tab-strip [data-attention="blocked"]');
+    assert.equal(await page.textContent('#tab-strip [data-attention="blocked"]'), "◆ sess-hidden");
+    assert.equal(await page.$('.corner[data-key="s:sess-hidden"]'), null, "the waiting session starts off screen");
+
+    await page.locator("body").focus();
+    await page.keyboard.press("Alt+n");
+    await page.waitForSelector('.corner[data-key="s:sess-hidden"]');
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")), "Session: sess-hidden");
+  } finally {
+    await page.close();
+  }
+});
+
+test("needs-you queue: blocked before failed before your turn; a seen failed or your-turn wait leaves it", async () => {
+  const page = await newLivePageAt(1280, 800);
+  try {
+    for (const [corner, id] of [[1, "sess-turn"], [2, "sess-fail"], [3, "sess-block"]]) {
+      await page.fill(`[aria-label="Assign a session to corner ${corner}"]`, id);
+      await page.press(`[aria-label="Assign a session to corner ${corner}"]`, "Enter");
+    }
+    const now = Math.floor(Date.now() / 1000);
+    await fireSnapshot(page, liveSnapshot("sess-turn", waitingState("your turn", now - 900)));
+    await fireSnapshot(page, liveSnapshot("sess-fail", waitingState("failed: rate_limit", now - 600)));
+    await fireSnapshot(page, liveSnapshot("sess-block", waitingState("blocked: question", now - 10)));
+    await page.waitForFunction(() => document.querySelectorAll("#needs-you .needs-you-item").length === 3);
+    const order = () => page.$$eval("#needs-you .needs-you-item", (els) => els.map((el) => `${el.dataset.kind}:${el.textContent}`));
+    const first = await order();
+    assert.match(first[0], /^blocked:◆ sess-block · \d+s$/, "blocked comes first even though it is the newest wait");
+    assert.equal(first[1], "error:! sess-fail · 10m");
+    assert.equal(first[2], "yourTurn:● sess-turn · 15m");
+    const frames = await page.$$eval(".corner", (els) => els.map((el) => el.dataset.attention ?? ""));
+    assert.deepEqual(frames, ["yourTurn", "error", "blocked", ""]);
+
+    // Focusing a corner counts as seeing it. Your turn and failed leave the queue; blocked stays.
+    for (const id of ["sess-turn", "sess-fail", "sess-block"]) await page.focus(`.corner[data-key="s:${id}"]`);
+    await page.waitForFunction(() => document.querySelectorAll("#needs-you .needs-you-item").length === 1);
+    assert.deepEqual(await order(), [(await order())[0]]);
+    assert.match((await order())[0], /^blocked:/);
+    assert.equal(await page.title(), "(1) Zofia");
+    assert.equal(await page.$eval('[data-corner="0"] .activity-headline', (el) => el.textContent), "● your turn", "the headline still says what happened");
+
+    // A new wait on a seen session queues again.
+    await fireSnapshot(page, liveSnapshot("sess-turn", waitingState("your turn", now - 5)));
+    await page.waitForFunction(() => document.querySelectorAll("#needs-you .needs-you-item").length === 2);
+  } finally {
+    await page.close();
+  }
+});
+
+// The sample data has no waiting session, so the contrast tests above never saw the queue,
+// the frames or the blocked / failed / your-turn colours. This one does.
+test("axe-core: zero WCAG contrast violations with blocked, failed and your-turn sessions queued", async () => {
+  const page = await newLivePageAt(1280, 800);
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    for (const [corner, id, value] of [[1, "sess-x", "blocked: permission"], [2, "sess-y", "failed: overloaded"], [3, "sess-z", "your turn"]]) {
+      await page.fill(`[aria-label="Assign a session to corner ${corner}"]`, id);
+      await page.press(`[aria-label="Assign a session to corner ${corner}"]`, "Enter");
+      await fireSnapshot(page, liveSnapshot(id, waitingState(value, now - 60)));
+    }
+    await page.waitForFunction(() => document.querySelectorAll("#needs-you .needs-you-item").length === 3);
+    const axeSource = await readFile(path.join(ROOT, "node_modules/axe-core/axe.min.js"), "utf8");
+    await page.addScriptTag({ content: axeSource });
+    const results = await page.evaluate(async (opts) => await window.axe.run(document, opts), AA_CONTRAST_ONLY);
+    assert.equal(results.violations.length, 0, JSON.stringify(results.violations, null, 2));
+  } finally {
+    await page.close();
+  }
+});

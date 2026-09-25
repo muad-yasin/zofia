@@ -1,5 +1,6 @@
 import type { CornerIndex, DetectedSession, RegisteredSession } from "./types.js";
-import { buildCompactCard, buildFullCard, fmtAbsolute, fmtRelative, refreshRelativeTimes } from "./cardView.js";
+import { GLYPH, buildCompactCard, buildFullCard, fmtAbsolute, fmtRelative, fmtSpan, refreshRelativeTimes, waitingSessions } from "./cardView.js";
+import type { AttentionKind, WaitingSession } from "./cardView.js";
 import type { PaneRegistry } from "./paneRegistry.js";
 
 const PANE_FLOOR_WIDTH = 480;
@@ -78,6 +79,14 @@ export class GridShell {
   private clearAllBtn: HTMLButtonElement | null = null;
   private centerBtn!: HTMLButtonElement;
   private accountEl!: HTMLElement;
+  private needsYouEl!: HTMLElement;
+  /** Sessions already announced as waiting, so each wait is announced once. */
+  private announcedWaiting = new Set<string>();
+  /** A failed or your-turn wait the owner has focused, keyed by session, valued by the wait's
+   * start: it leaves the queue until a new wait begins. In memory only. */
+  private seenWaits = new Map<string, number | null>();
+  /** What each queued session waits for, from the latest renderNeedsYou. */
+  private attention = new Map<string, WaitingSession>();
   /** Sessions the shim has seen, offered in every empty corner (quality check Q3). */
   private detected: DetectedSession[] = [];
 
@@ -96,7 +105,18 @@ export class GridShell {
     setInterval(() => {
       refreshRelativeTimes(this.cornerGridEl);
       this.renderAccount();
+      this.renderNeedsYou();
     }, RELATIVE_TICK_MS);
+    // Alt+N jumps to the session that has waited longest. Not while typing in the center
+    // seat's terminal, which owns its own keys.
+    window.addEventListener("keydown", (e) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey || e.key.toLowerCase() !== "n") return;
+      if (e.target instanceof Node && this.centerEl.contains(e.target)) return;
+      const first = this.waiting()[0];
+      if (!first) return;
+      e.preventDefault();
+      this.focusSession(first.sessionId);
+    });
   }
 
   private buildDom(): void {
@@ -122,7 +142,15 @@ export class GridShell {
     account.id = "account";
     account.setAttribute("aria-label", "Subscription usage and time");
     this.accountEl = account;
-    topbar.append(h1, account, spacer);
+    // The "needs you" queue: every session waiting on the owner, blocked first, then
+    // failed, then "your turn", each longest wait first, one
+    // click (or Alt+N) from its corner. Empty, it says so in muted text rather than vanish,
+    // so its absence never has to be interpreted.
+    const needsYou = document.createElement("nav");
+    needsYou.id = "needs-you";
+    needsYou.setAttribute("aria-label", "Sessions waiting for you");
+    this.needsYouEl = needsYou;
+    topbar.append(h1, account, needsYou, spacer);
     // Option B (DECISIONS.md, 2026-09-23): assignments come back after a restart, so there
     // is a one-click way to forget them all.
     if (this.onClearAll) {
@@ -144,6 +172,7 @@ export class GridShell {
     const cornerGrid = document.createElement("div");
     cornerGrid.id = "corner-grid";
     this.cornerGridEl = cornerGrid;
+    cornerGrid.addEventListener("focusin", (e) => this.markSeen(e.target));
 
     const tabStrip = document.createElement("div");
     tabStrip.id = "tab-strip";
@@ -276,6 +305,7 @@ export class GridShell {
 
     if (this.clearAllBtn) this.clearAllBtn.disabled = this.registry.getAllTabEntries().length === 0;
     this.renderAccount();
+    this.renderNeedsYou();
     this.renderCorners(visible);
     if (showTabStrip) this.renderTabStrip(entries);
   }
@@ -310,9 +340,11 @@ export class GridShell {
       const sig = session ? JSON.stringify([session.label, session.restored ?? false, session.snapshot]) : pickerSig;
       const label = session ? `Session: ${session.label}` : `Corner ${i + 1}: no session assigned`;
       const old = existing[i];
+      const waiting = session ? (this.attention.get(session.sessionId)?.kind ?? null) : null;
 
       if (old && old.dataset.key === key) {
         this.placeCorner(old, i, visible.length, label);
+        this.markAttention(old, waiting);
         if (old.dataset.sig === sig) return;
         if (session) {
           const [full, compact] = old.children;
@@ -329,6 +361,7 @@ export class GridShell {
       el.dataset.key = key;
       el.dataset.sig = sig;
       this.placeCorner(el, i, visible.length, label);
+      this.markAttention(el, waiting);
       if (!session) {
         el.append(this.buildAssignForm(cornerIndex));
       } else {
@@ -390,6 +423,82 @@ export class GridShell {
     const text = parts.join(" · ");
     if (this.accountEl.textContent !== text) this.accountEl.textContent = text;
     this.accountEl.title = title;
+  }
+
+  /** A waiting corner's frame takes its state's colour, so it reads in peripheral vision
+   * without reading the headline. The headline keeps its glyph and words (never colour alone). */
+  private markAttention(el: HTMLElement, kind: AttentionKind | null): void {
+    if (kind) el.dataset.attention = kind;
+    else delete el.dataset.attention;
+  }
+
+  private waiting(): WaitingSession[] {
+    return waitingSessions(this.registry.getAllTabEntries(), (w) => this.seenWaits.get(w.sessionId) === w.since && this.seenWaits.has(w.sessionId));
+  }
+
+  /** Focusing a corner counts as seeing it: a failed or your-turn wait there leaves the queue. */
+  private markSeen(target: EventTarget | null): void {
+    const key = target instanceof Element ? target.closest<HTMLElement>(".corner")?.dataset.key : undefined;
+    const w = key?.startsWith("s:") ? this.attention.get(key.slice(2)) : undefined;
+    if (!w || w.kind === "blocked") return;
+    this.seenWaits.set(w.sessionId, w.since);
+    this.render();
+  }
+
+  /** The top bar's queue, the window title's count, and one announcement per new wait. */
+  private renderNeedsYou(): void {
+    const waiting = this.waiting();
+    this.attention = new Map(waiting.map((w) => [w.sessionId, w]));
+    document.title = waiting.length ? `(${waiting.length}) Zofia` : "Zofia";
+
+    const waitKey = (w: WaitingSession) => `${w.sessionId}@${w.since}`;
+    const fresh = waiting.filter((w) => !this.announcedWaiting.has(waitKey(w)));
+    this.announcedWaiting = new Set(waiting.map(waitKey));
+    if (fresh.length === 1) this.announce(`${fresh[0].label}: ${fresh[0].what}`);
+    else if (fresh.length > 1) this.announce(`${fresh.length} sessions are waiting for you`);
+
+    const now = Math.floor(Date.now() / 1000);
+    const span = (w: WaitingSession) => (w.since === null ? null : fmtSpan(Math.max(0, now - w.since)));
+    const text = (w: WaitingSession) => [w.label, span(w)].filter(Boolean).join(" · ");
+    const sig = JSON.stringify(waiting.map((w) => [w.kind, w.what, text(w)]));
+    if (this.needsYouEl.dataset.sig === sig) return;
+    this.needsYouEl.dataset.sig = sig;
+
+    const focusedId = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>("#needs-you .needs-you-item")?.dataset.sessionId;
+    this.needsYouEl.innerHTML = "";
+    if (!waiting.length) {
+      const none = document.createElement("span");
+      none.className = "needs-you-none";
+      none.textContent = "nobody waiting";
+      this.needsYouEl.append(none);
+      return;
+    }
+    for (const w of waiting) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "needs-you-item";
+      btn.dataset.sessionId = w.sessionId;
+      btn.dataset.kind = w.kind;
+      const glyph = document.createElement("span");
+      glyph.setAttribute("aria-hidden", "true");
+      glyph.textContent = GLYPH[w.kind];
+      btn.append(glyph, " ", text(w));
+      btn.title = w.since === null ? `${w.what}; start not observed` : `${w.what} since ${fmtAbsolute(w.since)}`;
+      btn.setAttribute("aria-label", `${w.label}: ${w.what}${span(w) ? `, ${span(w)}` : ""}. Show it.`);
+      btn.addEventListener("click", () => this.focusSession(w.sessionId));
+      this.needsYouEl.append(btn);
+      if (w.sessionId === focusedId) btn.focus({ preventScroll: true });
+    }
+  }
+
+  /** Brings a registered session's corner into view (moving the tab window if needed) and
+   * focuses it. */
+  private focusSession(sessionId: string): void {
+    const index = this.allEntries().findIndex((e) => e?.sessionId === sessionId);
+    if (index < 0) return;
+    const selector = `.corner[data-key="${CSS.escape(`s:${sessionId}`)}"]`;
+    if (!this.cornerGridEl.querySelector(selector)) this.selectTab(index);
+    this.cornerGridEl.querySelector<HTMLElement>(selector)?.focus();
   }
 
   /** Position-dependent attributes, re-applied whenever a corner element is reused. */
@@ -500,6 +609,14 @@ export class GridShell {
       btn.setAttribute("aria-selected", String(selected));
       btn.tabIndex = selected ? 0 : -1;
       btn.textContent = session ? session.label : `Corner ${Math.min(i + 1, 4)} (empty)`;
+      // A session behind a tab still shows that it waits (the strip used to carry names
+      // only, so a wait off screen was invisible).
+      const w = session ? this.attention.get(session.sessionId) : undefined;
+      if (w) {
+        btn.dataset.attention = w.kind;
+        btn.textContent = `${GLYPH[w.kind]} ${w.label}`;
+        btn.setAttribute("aria-label", `${w.label}: ${w.what}`);
+      }
       btn.addEventListener("click", () => this.selectTab(i));
       btn.addEventListener("keydown", (e) => this.onTabKeydown(e, i, entries.length));
       this.tabStripEl.append(btn);

@@ -560,3 +560,37 @@ body {
 .wiring-error { margin: 0; padding: 0.25rem 0.5rem; border: 1px solid currentColor; font-weight: 600; }
 .center-model:empty { display: none; }
 .center-launcher[hidden] { display: none; }
+
+/* The "needs you" queue (research brief 04, proposal 1): waiting sessions in the top bar,
+   longest wait first, and a waiting corner's frame in the waiting colour. The glyph and
+   words carry the meaning; colour only adds to them. */
+#needs-you {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+}
+
+.needs-you-none {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+#topbar button.needs-you-item {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+#topbar button.needs-you-item[data-kind="blocked"] { color: var(--status-blocked); border-color: var(--status-blocked); }
+#topbar button.needs-you-item[data-kind="error"] { color: var(--status-error); border-color: var(--status-error); }
+#topbar button.needs-you-item[data-kind="yourTurn"] { color: var(--status-your-turn); border-color: var(--status-your-turn); }
+
+.corner[data-attention="blocked"] { border-color: var(--status-blocked); box-shadow: inset 0 0 0 1px var(--status-blocked); }
+.corner[data-attention="error"] { border-color: var(--status-error); box-shadow: inset 0 0 0 1px var(--status-error); }
+.corner[data-attention="yourTurn"] { border-color: var(--status-your-turn); }
+
+#tab-strip button[data-attention="blocked"] { color: var(--status-blocked); }
+#tab-strip button[data-attention="error"] { color: var(--status-error); }
+#tab-strip button[data-attention="yourTurn"] { color: var(--status-your-turn); }
