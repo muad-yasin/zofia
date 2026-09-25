@@ -584,3 +584,13 @@ panes were ~490 px wide. The breakpoint is now derived, `2 × PANE_FLOOR_WIDTH +
 (996 px), so the 2×2 grid shows whenever two corners fit side by side at the floor. The
 480×320 floor and the 900 px medium breakpoint are unchanged, and all three stay PLAN.md
 §4 placeholders: §10 decision 3 (the owner measuring his screen) still replaces them.
+
+## 2026-09-25 — the repo goes public (owner's call)
+
+The owner, to C&C: *"I also want to make Zofia open source, can you also scan it for secrets and
+then change it to public?"* This opens `PLAN.md` §9.2 item 3 (the public release) early; the
+year-1 build order is unchanged. Before the flip, C&C scanned all 80 commits on every branch for
+API keys, tokens and private-key headers (none), and for tracked `.env`, transcripts, `BOARD*`,
+`-cheap` copies or `Review/` files (none; they stay gitignored). One real Claude Code session id is
+quoted in the 2026-09-23 item-1 entry; it is not a credential. `LICENSE` (Apache-2.0, the same text
+and holder as Sophi-A's) was added, matching `package.json`.
