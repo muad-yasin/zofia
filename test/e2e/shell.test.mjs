@@ -392,12 +392,22 @@ test("the activity headline leads the card, coloured by kind and never by colour
   try {
     await page.fill('[aria-label="Assign a session to corner 1"]', "sess-W");
     await page.press('[aria-label="Assign a session to corner 1"]', "Enter");
-    await fireSnapshot(page, liveSnapshot("sess-W", { activityState: { value: "waiting for input", availability: "approximable", source: "hook", observed_at: 1 } }));
-    await page.waitForSelector('[data-corner="0"] .activity-headline[data-kind="waiting"]');
+    await fireSnapshot(page, liveSnapshot("sess-W", { activityState: { value: "blocked: permission", availability: "approximable", source: "hook", observed_at: 1 } }));
+    await page.waitForSelector('[data-corner="0"] .activity-headline[data-kind="blocked"]');
     const h = await page.$eval('[data-corner="0"] .activity-headline', (el) => ({ text: el.textContent, color: getComputedStyle(el).color, first: el.parentElement.children[1] === el }));
-    assert.equal(h.text, "◆ waiting for input");
+    assert.equal(h.text, "◆ blocked: permission");
     assert.equal(h.color, "rgb(217, 138, 131)");
     assert.ok(h.first, "the headline comes right after the name");
+    // Brief 04 P2: a finished turn and an API error each get their own glyph, words and colour.
+    for (const [value, kind, text, color] of [
+      ["your turn", "yourTurn", "● your turn", "rgb(138, 180, 217)"],
+      ["failed: rate_limit", "error", "! failed: rate_limit", "rgb(255, 111, 97)"],
+    ]) {
+      await fireSnapshot(page, liveSnapshot("sess-W", { activityState: { value, availability: "approximable", source: "hook", observed_at: 1 } }));
+      await page.waitForSelector(`[data-corner="0"] .activity-headline[data-kind="${kind}"]`);
+      const got = await page.$eval('[data-corner="0"] .activity-headline', (el) => ({ text: el.textContent, color: getComputedStyle(el).color }));
+      assert.deepEqual(got, { text, color });
+    }
   } finally {
     await page.close();
   }
@@ -479,7 +489,7 @@ test("an empty corner offers detected sessions by folder, and one click assigns 
     const picks = await page.$$eval('[data-corner="3"] .pick', (els) => els.map((el) => el.querySelector(".pick-name").textContent));
     assert.deepEqual(picks, ["THCMCP", "SMO · 2f9d", "SMO · b83a"], "folders name the sessions; a shared folder adds the id's first 4 chars");
     const detail = await page.textContent('[data-corner="3"] .pick .pick-detail');
-    assert.match(detail, /waiting for input · Opus 5\.5 · \d+s ago/);
+    assert.match(detail, /blocked: permission · Opus 5\.5 · \d+s ago/);
     assert.equal(await page.$eval('[data-corner="3"] details.paste', (d) => d.open), false, "the paste box is the fallback, closed");
 
     await page.click('[data-corner="3"] .pick[data-session-id^="2f9d"]');

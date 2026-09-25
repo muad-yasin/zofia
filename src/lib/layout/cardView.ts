@@ -7,22 +7,29 @@
 
 import type { Field, RegisteredSession, SessionSnapshot } from "./types.js";
 
-export type ActivityKind = "working" | "waiting" | "idle" | "ended" | "stale" | "unknown";
+// Brief 04 P2 (2026-09-25): "blocked" (a permission prompt or question stops the session),
+// "yourTurn" (the turn is over and the prompt has sat idle) and "error" (the turn ended on an
+// API error, e.g. a rate limit) replace the one old "waiting".
+export type ActivityKind = "working" | "blocked" | "yourTurn" | "error" | "idle" | "ended" | "stale" | "unknown";
 
 const GLYPH: Record<ActivityKind, string> = {
   working: "▶",
-  waiting: "◆",
+  blocked: "◆",
+  yourTurn: "●",
+  error: "!",
   idle: "○",
   ended: "✕",
   stale: "…",
   unknown: "?",
 };
 
-/** Sorts the readers' activity labels into the six kinds the headline colours. */
+/** Sorts the readers' activity labels into the kinds the headline colours. */
 export function activityKind(value: string | null): ActivityKind {
   if (!value) return "unknown";
   if (value.startsWith("running tool") || value.startsWith("processing")) return "working";
-  if (value.startsWith("waiting for input")) return "waiting";
+  if (value.startsWith("blocked:")) return "blocked";
+  if (value === "your turn") return "yourTurn";
+  if (value.startsWith("failed:")) return "error";
   if (value.startsWith("idle") || value === "ready") return "idle";
   if (value.startsWith("ended")) return "ended";
   if (value.startsWith("stale")) return "stale";

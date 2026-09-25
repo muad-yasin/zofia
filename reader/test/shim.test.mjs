@@ -216,3 +216,25 @@ test("hook-writer.sh records turn_started_at on UserPromptSubmit only, and later
     assert.equal((await read()).turn_started_at, start);
   });
 });
+
+// Brief 04 P2 (2026-09-25): an API error ends the turn with StopFailure. The shim keeps its
+// error_type (a category, never message text) and stamps turn_ended_at, which a later
+// idle_prompt notification must not erase.
+test("hook-writer.sh records StopFailure's error_type and turn_ended_at, and a later notification keeps it", async () => {
+  await withSessionsDir(async (dir) => {
+    const env = { ZOFIA_SESSIONS_DIR: dir };
+    const read = async () => JSON.parse(await readFile(path.join(dir, "sess-fail.json"), "utf8"));
+    await runScript("hook-writer.sh", JSON.stringify({ session_id: "sess-fail", hook_event_name: "UserPromptSubmit" }), env);
+    assert.equal((await read()).turn_ended_at, undefined);
+    await runScript("hook-writer.sh", JSON.stringify({ session_id: "sess-fail", hook_event_name: "StopFailure", error_type: "rate_limit", error_message: "secret-ish text" }), env);
+    let state = await read();
+    assert.equal(state.latest_hook_event.error_type, "rate_limit");
+    assert.equal(typeof state.turn_ended_at, "number");
+    assert.ok(!JSON.stringify(state).includes("secret-ish"), "message text is never stored");
+    const ended = state.turn_ended_at;
+    await runScript("hook-writer.sh", JSON.stringify({ session_id: "sess-fail", hook_event_name: "Notification", notification_type: "idle_prompt" }), env);
+    state = await read();
+    assert.equal(state.turn_ended_at, ended);
+    assert.equal(state.latest_hook_event.error_type, null);
+  });
+});

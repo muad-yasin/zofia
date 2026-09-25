@@ -136,14 +136,14 @@ test("activity state: dead owning process overrides everything else, even a fres
   assert.equal(snap.activityState.availability, "exposed");
 });
 
-test("activity state: Notification agent_needs_input -> waiting for input, and never downgraded to stale", () => {
+test("activity state: Notification agent_needs_input -> blocked: question, and never downgraded to stale", () => {
   const raw = {
     latest_statusline: null,
     latest_hook_event: { observed_at: 1000, hook_event_name: "Notification", notification_type: "agent_needs_input" },
     pid: null,
   };
   const snap = deriveSnapshot(raw, { now: 1000 + 10_000 });
-  assert.equal(snap.activityState.value, "waiting for input");
+  assert.equal(snap.activityState.value, "blocked: question");
 });
 
 test("lastActiveTime picks the freshest of statusline/hook observed_at, never file mtime", () => {

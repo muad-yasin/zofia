@@ -21,7 +21,14 @@ const STALE_AFTER_S = 120; // PLAN.md §2.1's own caught bug used this number to
 // "stale" when nothing newer has arrived AND no owning process is recorded to check —
 // never to assert idle, and never on a process known to be alive (Q2).
 
-const TERMINAL_HOOK_EVENTS = new Set(["Stop", "SessionEnd"]);
+// StopFailure ends a turn on an API error instead of Stop (Claude Code hooks docs); without it
+// a rate-limited session read "processing · 12m" for as long as its process lived (2026-09-25).
+const TERMINAL_HOOK_EVENTS = new Set(["Stop", "StopFailure", "SessionEnd"]);
+
+// States that wait on a person. They never age into "stale": the wait is the state.
+function isWaitingLabel(label) {
+  return label === "ready" || label === "your turn" || label.startsWith("blocked:");
+}
 
 /**
  * @param {object|null} raw parsed contents of the per-session state file, or null if
@@ -135,8 +142,17 @@ function deriveDurationLine(raw, hook, now, isProcessAlive) {
   }
   const source = "approximated from the shim's hook times (UserPromptSubmit to Stop), not Claude Code's own spinner line";
   const done = hook.hook_event_name === "Stop" || (hook.hook_event_name === "Notification" && hook.notification_type === "agent_completed");
+  if (hook.hook_event_name === "StopFailure" && hook.observed_at >= start) {
+    return field(`failed after ${fmtElapsed(hook.observed_at - start)}`, AVAILABILITY.APPROXIMABLE, source, hook.observed_at);
+  }
   if (done && hook.observed_at >= start) {
     return field(`worked for ${fmtElapsed(hook.observed_at - start)}`, AVAILABILITY.APPROXIMABLE, source, hook.observed_at);
+  }
+  // A later event (an idle_prompt notification, say) replaced the Stop; the shim also stamps
+  // turn_ended_at at Stop/StopFailure (2026-09-25), so the finished turn still reads finished.
+  const ended = raw.turn_ended_at;
+  if (typeof ended === "number" && ended >= start) {
+    return field(`worked for ${fmtElapsed(ended - start)}`, AVAILABILITY.APPROXIMABLE, source, ended);
   }
   if (hook.hook_event_name === "SessionEnd") return unknownField("the session ended before the turn's Stop");
   return field(`working for ${fmtElapsed(Math.max(0, now - start))}`, AVAILABILITY.APPROXIMABLE, source, start);
@@ -193,7 +209,7 @@ function deriveActivityState(hook, pid, now, isProcessAlive) {
 
   const label = activityLabelForEvent(hook);
   const ageS = Math.max(0, now - hook.observed_at);
-  const isTerminal = TERMINAL_HOOK_EVENTS.has(hook.hook_event_name) || label === "waiting for input" || label === "ready";
+  const isTerminal = TERMINAL_HOOK_EVENTS.has(hook.hook_event_name) || isWaitingLabel(label);
   if (isTerminal) {
     return field(label, AVAILABILITY.APPROXIMABLE, `derived from last hook event: ${hook.hook_event_name}`, hook.observed_at);
   }
@@ -241,12 +257,19 @@ function activityLabelForEvent(hook) {
       return "processing";
     case "Stop":
       return "idle";
+    case "StopFailure":
+      // error_type is a category (rate_limit, overloaded, ...), never message text.
+      return `failed: ${typeof hook.error_type === "string" ? hook.error_type : "unknown"}`;
+    case "PermissionRequest":
+      return "blocked: permission";
     case "SessionEnd":
       return `ended (${hook.end_reason ?? "unknown reason"})`;
     case "Notification":
-      if (["agent_needs_input", "permission_prompt", "idle_prompt", "elicitation_dialog"].includes(hook.notification_type)) {
-        return "waiting for input";
-      }
+      // Blocked: the session can't go on until a person answers. Your turn: the turn is over
+      // and the prompt has sat idle. Brief 04 P2 splits the one old "waiting for input".
+      if (hook.notification_type === "permission_prompt") return "blocked: permission";
+      if (hook.notification_type === "elicitation_dialog" || hook.notification_type === "agent_needs_input") return "blocked: question";
+      if (hook.notification_type === "idle_prompt") return "your turn";
       if (hook.notification_type === "agent_completed") {
         return "idle";
       }

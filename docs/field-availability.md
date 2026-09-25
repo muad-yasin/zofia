@@ -77,6 +77,11 @@ from both "still running" and "idle." `SessionStart` reads `ready` (waiting for 
 prompt). Terminal-death is its own case, verified via `kill -0` against the owning PID,
 not inferred from any timeout. That PID was checked against four live sessions on
 2026-09-24: in each it is the `claude` process itself, not a short-lived hook shell.
+Since 2026-09-25 (research brief 04, P2) three more states wait on a person and never go
+stale: `blocked: permission` / `blocked: question` (a permission prompt, `PermissionRequest`,
+an elicitation dialog), `your turn` (an `idle_prompt` notification), and `failed: <error_type>`
+from `StopFailure`, which ends a turn on an API error instead of `Stop` (hooks docs). The
+`failed` state is read from the docs, not yet observed in a live session.
 
 ## Still open (real, not rhetorical)
 

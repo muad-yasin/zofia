@@ -1,15 +1,20 @@
 {
-  "description": "a permission prompt blocks the session and never goes stale",
+  "description": "StopFailure with a mistyped error_type reads failed: unknown in both readers",
   "now": 1790000000,
-  "alive_pids": [],
+  "alive_pids": [
+    4242
+  ],
   "state": {
+    "pid": 4242,
     "latest_hook_event": {
-      "observed_at": 1789995000,
-      "hook_event_name": "Notification",
+      "observed_at": 1789999000,
       "tool_name": null,
-      "notification_type": "permission_prompt",
-      "end_reason": null
-    }
+      "notification_type": null,
+      "end_reason": null,
+      "hook_event_name": "StopFailure",
+      "error_type": 7
+    },
+    "turn_started_at": 1789998000
   },
   "expected": {
     "model": {
@@ -38,19 +43,19 @@
       "observed_at": null
     },
     "activityState": {
-      "value": "blocked: permission",
+      "value": "failed: unknown",
       "availability": "approximable",
-      "observed_at": 1789995000
+      "observed_at": 1789999000
     },
     "durationLine": {
-      "value": null,
-      "availability": "unknown",
-      "observed_at": null
+      "value": "failed after 16m 40s",
+      "availability": "approximable",
+      "observed_at": 1789999000
     },
     "lastActiveTime": {
-      "value": 1789995000,
+      "value": 1789999000,
       "availability": "exposed",
-      "observed_at": 1789995000
+      "observed_at": 1789999000
     },
     "tokenSpend.usd": {
       "value": null,

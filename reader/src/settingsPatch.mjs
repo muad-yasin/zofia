@@ -4,7 +4,12 @@
 
 // UserPromptSubmit added 2026-09-23 (audit F4): without it a session that is thinking or
 // writing a text-only reply, with no tool call, still reads "idle" from its last Stop.
-export const HOOK_EVENTS = ["Stop", "PreToolUse", "PostToolUse", "Notification", "SessionStart", "SessionEnd", "UserPromptSubmit"];
+// StopFailure, PermissionRequest, PostToolUseFailure added 2026-09-25 (brief 04 P2): an API
+// error ends the turn with StopFailure, not Stop, so without it a failed turn read "processing".
+export const HOOK_EVENTS = [
+  "Stop", "PreToolUse", "PostToolUse", "Notification", "SessionStart", "SessionEnd", "UserPromptSubmit",
+  "StopFailure", "PermissionRequest", "PostToolUseFailure",
+];
 
 export function hookWriterCommand(shimDir) {
   return `bash ${shimDir}/hook-writer.sh`;

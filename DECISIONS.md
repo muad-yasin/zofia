@@ -602,3 +602,34 @@ too"*, matching The High Council (MIT). `LICENSE` is now the MIT text with the s
 (Sower Industries); `package.json`, `package-lock.json` and `src-tauri/Cargo.toml` follow. The copy
 published under Apache-2.0 between the two commits stays available under Apache-2.0 to anyone who took
 it; that cannot be withdrawn and doesn't need to be. Bundled fonts keep their own licences.
+
+## 2026-09-25 — honest states: blocked, your turn, failed (research brief 04, P2)
+
+C&C dispatch (zofia-3b, "Zofia 0.2.0 ready for strangers"), from `zofia-research`'s brief 04.
+**The bug:** an API error (rate limit, overload, auth) ends a turn with `StopFailure`, not `Stop`
+(Claude Code hooks docs, fetched 2026-09-25: the two are alternative turn endings). The shim
+never registered `StopFailure`, so the last event stayed a working one and the corner read
+`processing · 12m`, climbing for as long as the process lived. Found by reading code and docs,
+not observed live.
+
+- The installer now registers `StopFailure`, `PermissionRequest` and `PostToolUseFailure` too
+  (10 events). The shim keeps `StopFailure`'s `error_type`, a category such as `rate_limit`,
+  never the message text. It prints nothing, so it never answers a `PermissionRequest`.
+- The old single "waiting for input" splits in two. **blocked** (`◆ blocked: permission` from
+  `PermissionRequest` or a `permission_prompt` notification; `◆ blocked: question` from an
+  elicitation dialog or `agent_needs_input`) means the session can't go on without a person.
+  **your turn** (`●`, from `idle_prompt`) means the turn is over and the prompt has sat idle.
+  **failed** (`! failed: rate_limit`) ends the turn like `Stop`. None of the three ever ages
+  into "stale". A failed tool call stays a working state, because the next step often recovers.
+- `Stop` still reads `idle`. The brief's "your turn after every Stop, fading once seen" needs a
+  per-corner "seen" flag; that's left for the needs-you queue work, not guessed at here.
+- **Turn line:** the shim also stamps `turn_ended_at` at `Stop`/`StopFailure`. Before this, a
+  later `idle_prompt` replaced the `Stop` and a finished turn read "working for 33m" again. A
+  failed turn reads "failed after 2m 3s".
+- Both readers changed together. Six new cases in `test/reader-parity/`; colours clear AA on
+  `--surface-raised` (your turn `#8ab4d9` 8.6:1, failed `#ff6f61` 6.9:1, blocked unchanged).
+- **An existing install doesn't get the new events until the installer runs again.** It is
+  idempotent and adds only the missing events. Re-running it on the owner's real
+  `~/.claude/settings.json` is his call, as before.
+- **Still unverified live:** when `idle_prompt` fires (the hooks page doesn't say), and that
+  `Stop` never follows `StopFailure` (the docs' lifecycle reading, not an observation).

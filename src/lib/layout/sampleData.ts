@@ -51,7 +51,7 @@ export const SAMPLE_SESSIONS: SessionSnapshot[] = [
 export const SAMPLE_DETECTED: DetectedSession[] = (() => {
   const now = Math.floor(Date.now() / 1000);
   return [
-    { session_id: "7c1e0b52-9a1d-4c3e-8f00-1a2b3c4d5e6f", cwd: "/home/owner/Projects/THCMCP", project: "THCMCP", activity: "waiting for input", last_active: now - 40, model: "Opus 5.5" },
+    { session_id: "7c1e0b52-9a1d-4c3e-8f00-1a2b3c4d5e6f", cwd: "/home/owner/Projects/THCMCP", project: "THCMCP", activity: "blocked: permission", last_active: now - 40, model: "Opus 5.5" },
     { session_id: "2f9d4a17-0b6c-4e21-9d33-6e5f4a3b2c1d", cwd: "/home/owner/Projects/SMO", project: "SMO", activity: "running tool: Bash · 3m 5s", last_active: now - 185, model: "Sonnet 5" },
     { session_id: "b83a6c90-5e2f-4d17-a4c8-9f0e1d2c3b4a", cwd: "/home/owner/Projects/SMO", project: "SMO", activity: "idle", last_active: now - 1500, model: "Sonnet 5" },
   ];

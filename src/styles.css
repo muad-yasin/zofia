@@ -24,7 +24,9 @@
   --status-idle: #9a968f;
   --status-working: #e3b23c;
   --status-unknown: #8d8a84;
-  --status-waiting: #d98a83;
+  --status-blocked: #d98a83;
+  --status-your-turn: #8ab4d9; /* calmer than blocked, louder than idle grey; 8.6:1 on --surface-raised */
+  --status-error: #ff6f61; /* 6.9:1 on --surface-raised; the "!" glyph and "failed:" words carry it too */
 
   --gold: #e3b23c;
   --gold-bright: #f0c75a;
@@ -394,7 +396,9 @@ body {
 }
 
 .activity-headline[data-kind="working"] { color: var(--status-working); }
-.activity-headline[data-kind="waiting"] { color: var(--status-waiting); }
+.activity-headline[data-kind="blocked"] { color: var(--status-blocked); }
+.activity-headline[data-kind="yourTurn"] { color: var(--status-your-turn); }
+.activity-headline[data-kind="error"] { color: var(--status-error); }
 .activity-headline[data-kind="idle"] { color: var(--status-idle); }
 .activity-headline[data-kind="ended"],
 .activity-headline[data-kind="stale"],
