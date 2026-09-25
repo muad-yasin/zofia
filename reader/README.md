@@ -19,12 +19,16 @@ every field carrying `{value, availability, source, observed_at}` — never a ba
   installer (`PLAN.md` §2.1). Default to `--dry-run`; require both `--apply` and
   `--yes` to actually write. `uninstall.mjs` refuses if `settings.json`'s whole-file
   hash has changed since install, rather than guessing what's safe to remove.
+  Both use `$CLAUDE_CONFIG_DIR/settings.json` when that variable is set, the same file
+  Claude Code reads, and `~/.claude/settings.json` otherwise.
 
 ## Status: installed on the owner's machine
 
 Installed on the owner's real `~/.claude/settings.json` on 2026-09-22 after his go, and
 reinstalled on 2026-09-23 (seven hooks, adding `UserPromptSubmit`) after a checking agent
-reviewed the diff. Every test in `test/` still runs against fixture files or a temp
+reviewed the diff. The ten-hook version (adding `StopFailure`, `PermissionRequest`,
+`PostToolUseFailure`, 2026-09-25) isn't on the owner's machine until he re-runs the
+installer. Every test in `test/` still runs against fixture files or a temp
 `settings.json`. See `../DECISIONS.md`.
 
 ## Usage

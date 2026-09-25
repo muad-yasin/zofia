@@ -147,3 +147,26 @@ test("installer backups are 0600, and a re-install over unchanged settings doesn
     for (const b of baks) assert.equal(((await stat(path.join(zofiaDir, b))).mode & 0o777).toString(8), "600");
   });
 });
+
+// Research brief 06 (2026-09-25): Claude Code reads settings.json from CLAUDE_CONFIG_DIR when
+// it is set; the installer hard-coded ~/.claude. HOME points at a scratch dir too, so a
+// regression could never reach the real ~/.claude.
+test("install and uninstall default to $CLAUDE_CONFIG_DIR when it is set", async () => {
+  await withTmp(async (dir) => {
+    const home = path.join(dir, "home");
+    const config = path.join(dir, "elsewhere");
+    const { mkdir, access } = await import("node:fs/promises");
+    await mkdir(path.join(home, ".claude"), { recursive: true });
+    await mkdir(config, { recursive: true });
+    await writeFile(path.join(home, ".claude", "settings.json"), '{"theme":"home"}');
+    await writeFile(path.join(config, "settings.json"), '{"theme":"config"}');
+    const env = { ...process.env, HOME: home, CLAUDE_CONFIG_DIR: config };
+    await exec("node", [INSTALL, "--shim-dir", SHIM_DIR, "--apply", "--yes"], { env });
+    const patched = JSON.parse(await readFile(path.join(config, "settings.json"), "utf8"));
+    assert.ok(patched.hooks?.StopFailure, "the relocated settings.json got the hooks");
+    await access(path.join(config, "zofia", "install-record.json"));
+    assert.equal(await readFile(path.join(home, ".claude", "settings.json"), "utf8"), '{"theme":"home"}');
+    await exec("node", [UNINSTALL, "--apply", "--yes"], { env });
+    assert.deepEqual(JSON.parse(await readFile(path.join(config, "settings.json"), "utf8")), { theme: "config" });
+  });
+});

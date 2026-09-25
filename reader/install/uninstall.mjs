@@ -7,11 +7,11 @@
 import { readFile, writeFile, rename, rm } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
-import os from "node:os";
 import { computeUninstallPatch } from "../src/settingsPatch.mjs";
+import { claudeConfigDir } from "../src/claudeConfigDir.mjs";
 
-const DEFAULT_SETTINGS_PATH = path.join(os.homedir(), ".claude", "settings.json");
-const DEFAULT_ZOFIA_DIR = path.join(os.homedir(), ".claude", "zofia");
+const DEFAULT_SETTINGS_PATH = path.join(claudeConfigDir(), "settings.json");
+const DEFAULT_ZOFIA_DIR = path.join(claudeConfigDir(), "zofia");
 
 function parseArgs(argv) {
   const out = { apply: false, yes: false, settingsPath: DEFAULT_SETTINGS_PATH, zofiaDir: DEFAULT_ZOFIA_DIR };

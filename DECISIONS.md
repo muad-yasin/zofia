@@ -645,3 +645,12 @@ now the exact shape `statuslineWrapperCommand` writes (optional
 wrapper from a different checkout path is recognised too and left as-is.
 **Not changed:** a re-install from a second checkout path still adds that path's hook commands
 next to the first path's, as before; uninstall removes each by its recorded command.
+
+## 2026-09-25 — the installer honours `CLAUDE_CONFIG_DIR`
+
+Research brief 06: Claude Code reads `settings.json` from `$CLAUDE_CONFIG_DIR` when it is set
+(settings docs), but `install.mjs`/`uninstall.mjs` hard-coded `~/.claude`. For anyone who had
+moved the directory, the installer patched a file Claude Code never read, and the hooks silently
+never fired. Both now default to `reader/src/claudeConfigDir.mjs`: the variable if set, else
+`~/.claude`. The install record and backups move with it (`<config dir>/zofia/`). Nothing changes
+for the owner, who doesn't set it. `--settings-path`/`--zofia-dir` still override both.
